@@ -82,6 +82,12 @@ const styles = StyleSheet.create({
     lineHeight: 1.4,
     color: '#374151',
   },
+  projectDescription: {
+    fontSize: 9.5,
+    lineHeight: 1.4,
+    color: '#374151',
+    marginTop: 1,
+  },
   entry: {
     marginBottom: 10,
   },
@@ -102,6 +108,7 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     color: '#6b7280',
     fontStyle: 'italic',
+    marginTop: 2,
   },
   link: {
     color: '#2563eb',
@@ -209,7 +216,7 @@ export function ClassicTemplate({ personalInfo, content }: TemplateProps) {
                   {proj.name}
                   {proj.url && <Link src={proj.url} style={styles.link}> ({proj.url.replace(/^https?:\/\/(www\.)?/, '')})</Link>}
                 </Text>
-                <Text style={styles.bulletText}>{proj.description}</Text>
+                <Text style={styles.projectDescription}>{proj.description}</Text>
                 <Text style={styles.projectTech}>{proj.technologies.join(', ')}</Text>
               </View>
             ))}

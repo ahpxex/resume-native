@@ -128,6 +128,12 @@ const styles = StyleSheet.create({
     lineHeight: 1.4,
     color: '#374151',
   },
+  projectDescription: {
+    fontSize: 9,
+    lineHeight: 1.4,
+    color: '#374151',
+    marginTop: 1,
+  },
   projectTech: {
     fontSize: 8,
     color: '#6b7280',
@@ -273,7 +279,7 @@ export function ModernTemplate({ personalInfo, content }: TemplateProps) {
               {content.projects.map((proj, i) => (
                 <View key={i} style={styles.entry}>
                   <Text style={styles.entryTitle}>{proj.name}</Text>
-                  <Text style={styles.bulletText}>{proj.description}</Text>
+                  <Text style={styles.projectDescription}>{proj.description}</Text>
                   <Text style={styles.projectTech}>{proj.technologies.join(', ')}</Text>
                 </View>
               ))}

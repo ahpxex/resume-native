@@ -94,6 +94,12 @@ const styles = StyleSheet.create({
     lineHeight: 1.5,
     color: '#3f3f46',
   },
+  projectDescription: {
+    fontSize: 9.5,
+    lineHeight: 1.5,
+    color: '#3f3f46',
+    marginTop: 1,
+  },
   skillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -218,7 +224,7 @@ export function MinimalTemplate({ personalInfo, content }: TemplateProps) {
                   {proj.name}
                   {proj.url && <Link src={proj.url} style={styles.link}> ({proj.url.replace(/^https?:\/\/(www\.)?/, '')})</Link>}
                 </Text>
-                <Text style={styles.bulletText}>{proj.description}</Text>
+                <Text style={styles.projectDescription}>{proj.description}</Text>
                 <Text style={styles.projectTech}>{proj.technologies.join(' / ')}</Text>
               </View>
             ))}
