@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -7,7 +7,8 @@ import { profilesAtom } from '../../store/profiles';
 import { templateRegistry } from '../../templates/registry';
 import { buildResumePdfBlob } from '../../lib/resume-pdf';
 
-const PREVIEW_PAGE_WIDTH = 820;
+const PREVIEW_PAGE_WIDTH = 980;
+const PREVIEW_RENDER_DEBOUNCE_MS = 320;
 
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -25,36 +26,44 @@ export function ResumePreview() {
     ? templateRegistry[activeResume.templateId]
     : null;
 
+  const renderPayload = useMemo(() => {
+    if (!activeResume || !profile || !template) return null;
+    return {
+      content: activeResume.content,
+      personalInfo: profile.personalInfo,
+      templateComponent: template.component,
+    };
+  }, [activeResume, profile, template]);
+
   useEffect(() => {
-    if (!activeResume || !profile || !template) {
+    if (!renderPayload) {
       setPageImages([]);
       setRendering(false);
       setError(null);
       return;
     }
-    const currentResume = activeResume;
-    const currentProfile = profile;
-    const currentTemplate = template;
+    const currentPayload = renderPayload;
 
     let cancelled = false;
 
     async function renderCanvasPreview() {
       setRendering(true);
       setError(null);
-      setPageImages([]);
 
       try {
         const blob = await buildResumePdfBlob({
-          template: currentTemplate.component,
-          personalInfo: currentProfile.personalInfo,
-          content: currentResume.content,
+          template: currentPayload.templateComponent,
+          personalInfo: currentPayload.personalInfo,
+          content: currentPayload.content,
         });
+
         const bytes = await blob.arrayBuffer();
         const loadingTask = getDocument({ data: bytes });
         const pdfDocument = await loadingTask.promise;
 
         try {
           const nextImages: string[] = [];
+
           for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
             if (cancelled) break;
 
@@ -72,13 +81,13 @@ export function ResumePreview() {
             if (!context) {
               throw new Error('Failed to create preview canvas context.');
             }
-            context.setTransform(dpiScale, 0, 0, dpiScale, 0, 0);
 
+            context.setTransform(dpiScale, 0, 0, dpiScale, 0, 0);
             await page.render({ canvas, canvasContext: context, viewport }).promise;
             nextImages.push(canvas.toDataURL('image/png'));
           }
 
-          if (!cancelled) {
+          if (!cancelled && nextImages.length > 0) {
             setPageImages(nextImages);
           }
         } finally {
@@ -95,11 +104,15 @@ export function ResumePreview() {
       }
     }
 
-    void renderCanvasPreview();
+    const timeoutId = window.setTimeout(() => {
+      void renderCanvasPreview();
+    }, PREVIEW_RENDER_DEBOUNCE_MS);
+
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
-  }, [activeResume, profile, template]);
+  }, [renderPayload]);
 
   if (!activeResume) {
     return (
@@ -119,7 +132,9 @@ export function ResumePreview() {
   return (
     <div className="h-full overflow-y-auto rounded border border-border bg-surface p-4">
       {rendering && (
-        <p className="mb-3 font-mono text-[10px] text-text-dim">Rendering canvas preview...</p>
+        <p className="mb-3 font-mono text-[10px] text-text-dim">
+          {pageImages.length > 0 ? 'Updating preview...' : 'Rendering canvas preview...'}
+        </p>
       )}
       {error && (
         <p className="mb-3 font-mono text-[10px] text-danger">{error}</p>

@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router';
-import { LayoutDashboard, FlaskConical, Settings, Menu, X } from 'lucide-react';
+import { FlaskConical, Menu, Settings, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const links = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/studio', label: 'Studio', icon: FlaskConical },
+  { to: '/', label: 'Studio', icon: FlaskConical },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

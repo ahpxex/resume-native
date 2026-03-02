@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
-import { Download } from 'lucide-react';
+import { useAtom } from 'jotai';
+import { Download, Pencil, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { profilesAtom } from '../store/profiles';
 import { scenariosAtom } from '../store/scenarios';
 import { activeResumeAtom, resumesAtom } from '../store/resumes';
@@ -12,11 +13,13 @@ import { ResumePreview } from '../components/studio/resume-preview';
 import { ResumeEditorPanel } from '../components/studio/resume-editor-panel';
 import { templateRegistry } from '../templates/registry';
 import { buildResumePdfBlob } from '../lib/resume-pdf';
-import type { ResumeContent } from '../types';
+import { generateId } from '../lib/utils';
+import type { Profile, ResumeContent, Scenario } from '../types';
 
 export function Studio() {
-  const profiles = useAtomValue(profilesAtom);
-  const scenarios = useAtomValue(scenariosAtom);
+  const navigate = useNavigate();
+  const [profiles, setProfiles] = useAtom(profilesAtom);
+  const [scenarios, setScenarios] = useAtom(scenariosAtom);
   const [, setResumes] = useAtom(resumesAtom);
   const [activeResume, setActiveResume] = useAtom(activeResumeAtom);
 
@@ -24,7 +27,11 @@ export function Studio() {
   const [selectedScenarioId, setSelectedScenarioId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('classic');
 
-  const filteredScenarios = scenarios.filter((s) => s.profileId === selectedProfileId);
+  const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) ?? profiles[0] ?? null;
+  const effectiveProfileId = selectedProfile?.id ?? '';
+  const profileScenarios = scenarios.filter((scenario) => scenario.profileId === effectiveProfileId);
+  const selectedScenario = profileScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? profileScenarios[0] ?? null;
+  const effectiveScenarioId = selectedScenario?.id ?? '';
 
   async function exportPdf() {
     if (!activeResume) return;
@@ -45,6 +52,44 @@ export function Studio() {
       .toLowerCase();
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function createProfile() {
+    const now = Date.now();
+    const profile: Profile = {
+      id: generateId(),
+      name: 'New Profile',
+      personalInfo: { fullName: '', email: '' },
+      workExperience: [],
+      education: [],
+      projects: [],
+      skills: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setProfiles((current) => [...current, profile]);
+    setSelectedProfileId(profile.id);
+    setSelectedScenarioId('');
+    setActiveResume(null);
+  }
+
+  function createScenario() {
+    if (!effectiveProfileId) return;
+
+    const now = Date.now();
+    const scenario: Scenario = {
+      id: generateId(),
+      profileId: effectiveProfileId,
+      name: 'New Scenario',
+      targetRole: '',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setScenarios((current) => [...current, scenario]);
+    setSelectedScenarioId(scenario.id);
+    setActiveResume(null);
   }
 
   function handleTemplateChange(templateId: string) {
@@ -73,7 +118,7 @@ export function Studio() {
   return (
     <div className="flex h-full">
       {/* Left panel -- controls */}
-      <div className="w-72 shrink-0 overflow-y-auto border-r border-border bg-surface p-4 space-y-5">
+      <div className="w-64 shrink-0 overflow-y-auto border-r border-border bg-surface p-4 space-y-5">
         <div>
           <span className="annotation">resume studio</span>
           <div className="mt-1 flex items-center gap-2">
@@ -84,30 +129,66 @@ export function Studio() {
 
         <div className="border-t border-dashed border-border-dashed" />
 
-        {/* Profile selector */}
         <Select
           label="Profile"
-          placeholder="Select a profile..."
-          options={profiles.map((p) => ({ value: p.id, label: p.name }))}
-          value={selectedProfileId}
-          onChange={(val) => {
-            setSelectedProfileId(val);
-            setSelectedScenarioId('');
+          placeholder="Create your first profile"
+          options={profiles.map((profile) => ({ value: profile.id, label: profile.name }))}
+          value={effectiveProfileId}
+          onChange={(value) => {
+            const nextScenario = scenarios.find((scenario) => scenario.profileId === value);
+            setSelectedProfileId(value);
+            setSelectedScenarioId(nextScenario?.id ?? '');
+            setActiveResume(null);
           }}
         />
 
-        {/* Scenario selector */}
-        {selectedProfileId && (
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" size="sm" onClick={createProfile}>
+            <Plus className="h-3 w-3" />
+            Profile
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!effectiveProfileId}
+            onClick={() => navigate(`/profiles/${effectiveProfileId}`)}
+          >
+            <Pencil className="h-3 w-3" />
+            Edit
+          </Button>
+        </div>
+
+        {effectiveProfileId && (
           <>
             <Select
               label="Scenario"
-              placeholder="Select a scenario..."
-              options={filteredScenarios.map((s) => ({ value: s.id, label: s.name }))}
-              value={selectedScenarioId}
-              onChange={(val) => setSelectedScenarioId(val)}
+              placeholder="Create a scenario"
+              options={profileScenarios.map((scenario) => ({ value: scenario.id, label: scenario.name }))}
+              value={effectiveScenarioId}
+              onChange={(value) => {
+                setSelectedScenarioId(value);
+                setActiveResume(null);
+              }}
             />
-            {filteredScenarios.length === 0 && (
-              <p className="font-mono text-[10px] text-warn">No scenarios for this profile.</p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" size="sm" onClick={createScenario}>
+                <Plus className="h-3 w-3" />
+                Scenario
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!effectiveScenarioId}
+                onClick={() => navigate(`/profiles/${effectiveProfileId}/scenarios/${effectiveScenarioId}`)}
+              >
+                <Pencil className="h-3 w-3" />
+                Edit
+              </Button>
+            </div>
+
+            {profileScenarios.length === 0 && (
+              <p className="font-mono text-[10px] text-warn">This profile has no scenarios yet.</p>
             )}
           </>
         )}
@@ -116,12 +197,12 @@ export function Studio() {
 
         <TemplatePicker value={selectedTemplateId} onChange={handleTemplateChange} />
 
-        {selectedProfileId && selectedScenarioId && (
+        {effectiveProfileId && effectiveScenarioId && (
           <>
             <div className="border-t border-dashed border-border-dashed" />
             <GenerationPanel
-              profileId={selectedProfileId}
-              scenarioId={selectedScenarioId}
+              profileId={effectiveProfileId}
+              scenarioId={effectiveScenarioId}
               templateId={selectedTemplateId}
             />
           </>
@@ -144,7 +225,7 @@ export function Studio() {
           <div className="min-w-0 flex-1">
             <ResumePreview />
           </div>
-          <div className="w-[26rem] shrink-0">
+          <div className="w-[22rem] max-w-[35vw] shrink-0">
             <ResumeEditorPanel
               key={activeResume?.id ?? 'no-resume'}
               resume={activeResume}

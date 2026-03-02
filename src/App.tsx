@@ -1,6 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AppShell } from './components/layout/app-shell';
-import { Dashboard } from './routes/dashboard';
 import { ProfileEditor } from './routes/profile-editor';
 import { Scenarios } from './routes/scenarios';
 import { ScenarioEditor } from './routes/scenario-editor';
@@ -12,11 +11,11 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<Studio />} />
+          <Route path="studio" element={<Navigate to="/" replace />} />
           <Route path="profiles/:id" element={<ProfileEditor />} />
           <Route path="profiles/:id/scenarios" element={<Scenarios />} />
           <Route path="profiles/:id/scenarios/:scenarioId" element={<ScenarioEditor />} />
-          <Route path="studio" element={<Studio />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
