@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Download } from 'lucide-react';
-import { pdf } from '@react-pdf/renderer';
 import { profilesAtom } from '../store/profiles';
 import { scenariosAtom } from '../store/scenarios';
 import { activeResumeAtom } from '../store/resumes';
@@ -11,6 +10,7 @@ import { TemplatePicker } from '../components/studio/template-picker';
 import { GenerationPanel } from '../components/studio/generation-panel';
 import { ResumePreview } from '../components/studio/resume-preview';
 import { templateRegistry } from '../templates/registry';
+import { buildResumePdfBlob } from '../lib/resume-pdf';
 
 export function Studio() {
   const profiles = useAtomValue(profilesAtom);
@@ -29,10 +29,11 @@ export function Studio() {
     if (!profile) return;
     const template = templateRegistry[activeResume.templateId];
     if (!template) return;
-    const TemplateComponent = template.component;
-    const blob = await pdf(
-      <TemplateComponent personalInfo={profile.personalInfo} content={activeResume.content} />
-    ).toBlob();
+    const blob = await buildResumePdfBlob({
+      template: template.component,
+      personalInfo: profile.personalInfo,
+      content: activeResume.content,
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

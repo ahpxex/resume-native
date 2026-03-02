@@ -1,12 +1,105 @@
+import { useEffect, useState } from 'react';
 import { useAtomValue } from 'jotai';
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { activeResumeAtom } from '../../store/resumes';
 import { profilesAtom } from '../../store/profiles';
 import { templateRegistry } from '../../templates/registry';
-import { PDFViewer } from '@react-pdf/renderer';
+import { buildResumePdfBlob } from '../../lib/resume-pdf';
+
+const PREVIEW_PAGE_WIDTH = 820;
+
+GlobalWorkerOptions.workerSrc = pdfWorker;
 
 export function ResumePreview() {
   const activeResume = useAtomValue(activeResumeAtom);
   const profiles = useAtomValue(profilesAtom);
+  const [pageImages, setPageImages] = useState<string[]>([]);
+  const [rendering, setRendering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const profile = activeResume
+    ? profiles.find((p) => p.id === activeResume.profileId)
+    : null;
+  const template = activeResume
+    ? templateRegistry[activeResume.templateId]
+    : null;
+
+  useEffect(() => {
+    if (!activeResume || !profile || !template) {
+      setPageImages([]);
+      setRendering(false);
+      setError(null);
+      return;
+    }
+    const currentResume = activeResume;
+    const currentProfile = profile;
+    const currentTemplate = template;
+
+    let cancelled = false;
+
+    async function renderCanvasPreview() {
+      setRendering(true);
+      setError(null);
+      setPageImages([]);
+
+      try {
+        const blob = await buildResumePdfBlob({
+          template: currentTemplate.component,
+          personalInfo: currentProfile.personalInfo,
+          content: currentResume.content,
+        });
+        const bytes = await blob.arrayBuffer();
+        const loadingTask = getDocument({ data: bytes });
+        const pdfDocument = await loadingTask.promise;
+
+        try {
+          const nextImages: string[] = [];
+          for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+            if (cancelled) break;
+
+            const page = await pdfDocument.getPage(pageNumber);
+            const baseViewport = page.getViewport({ scale: 1 });
+            const scale = PREVIEW_PAGE_WIDTH / baseViewport.width;
+            const viewport = page.getViewport({ scale });
+            const dpiScale = window.devicePixelRatio || 1;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.floor(viewport.width * dpiScale);
+            canvas.height = Math.floor(viewport.height * dpiScale);
+
+            const context = canvas.getContext('2d');
+            if (!context) {
+              throw new Error('Failed to create preview canvas context.');
+            }
+            context.setTransform(dpiScale, 0, 0, dpiScale, 0, 0);
+
+            await page.render({ canvas, canvasContext: context, viewport }).promise;
+            nextImages.push(canvas.toDataURL('image/png'));
+          }
+
+          if (!cancelled) {
+            setPageImages(nextImages);
+          }
+        } finally {
+          await pdfDocument.destroy();
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Failed to render preview');
+        }
+      } finally {
+        if (!cancelled) {
+          setRendering(false);
+        }
+      }
+    }
+
+    void renderCanvasPreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeResume, profile, template]);
 
   if (!activeResume) {
     return (
@@ -21,23 +114,31 @@ export function ResumePreview() {
     );
   }
 
-  const profile = profiles.find((p) => p.id === activeResume.profileId);
-  if (!profile) return null;
-
-  const template = templateRegistry[activeResume.templateId];
-  if (!template) return null;
-
-  const TemplateComponent = template.component;
+  if (!profile || !template) return null;
 
   return (
-    <PDFViewer
-      className="h-full w-full rounded border border-border"
-      showToolbar={false}
-    >
-      <TemplateComponent
-        personalInfo={profile.personalInfo}
-        content={activeResume.content}
-      />
-    </PDFViewer>
+    <div className="h-full overflow-y-auto rounded border border-border bg-surface p-4">
+      {rendering && (
+        <p className="mb-3 font-mono text-[10px] text-text-dim">Rendering canvas preview...</p>
+      )}
+      {error && (
+        <p className="mb-3 font-mono text-[10px] text-danger">{error}</p>
+      )}
+      {!rendering && !error && pageImages.length === 0 && (
+        <p className="mb-3 font-mono text-[10px] text-text-dim">No preview pages were generated.</p>
+      )}
+
+      <div className="space-y-4">
+        {pageImages.map((src, index) => (
+          <div key={`${index}-${src.length}`} className="mx-auto w-fit border border-border-dashed bg-white shadow-sm">
+            <img
+              src={src}
+              alt={`Resume page ${index + 1}`}
+              className="block h-auto max-w-full"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
