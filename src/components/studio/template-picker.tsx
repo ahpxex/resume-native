@@ -7,9 +7,9 @@ interface Template {
 }
 
 const templates: Template[] = [
-  { id: 'classic', name: 'Classic', description: 'Traditional single-column layout' },
+  { id: 'classic', name: 'Classic', description: 'Single-column, traditional' },
   { id: 'modern', name: 'Modern', description: 'Two-column with sidebar' },
-  { id: 'minimal', name: 'Minimal', description: 'Clean, generous whitespace' },
+  { id: 'minimal', name: 'Minimal', description: 'Clean, generous space' },
 ];
 
 interface Props {
@@ -20,24 +20,49 @@ interface Props {
 export function TemplatePicker({ value, onChange }: Props) {
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-zinc-700">Template</label>
-      <div className="grid grid-cols-3 gap-3">
+      <label className="annotation block">Template</label>
+      <div className="space-y-1.5">
         {templates.map((t) => (
           <button
             key={t.id}
             onClick={() => onChange(t.id)}
             className={cn(
-              'rounded-lg border-2 p-3 text-left transition-all',
+              'w-full rounded border border-dashed p-2.5 text-left transition-all',
               value === t.id
-                ? 'border-primary-500 bg-primary-50'
-                : 'border-zinc-200 hover:border-zinc-300'
+                ? 'border-accent/40 bg-accent/5'
+                : 'border-border-dashed hover:border-border-dashed hover:bg-surface-raised'
             )}
           >
-            <div className="mb-2 h-16 rounded bg-zinc-100 border border-zinc-200 flex items-center justify-center text-xs text-zinc-400">
-              {t.name}
+            <div className="flex items-center gap-2.5">
+              <div
+                className={cn(
+                  'flex h-8 w-6 items-center justify-center rounded border border-dashed',
+                  value === t.id
+                    ? 'border-accent/30 bg-accent/10'
+                    : 'border-border-dashed bg-canvas'
+                )}
+              >
+                <span
+                  className={cn(
+                    'font-mono text-[8px]',
+                    value === t.id ? 'text-accent' : 'text-text-dim'
+                  )}
+                >
+                  {t.id[0]?.toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <p
+                  className={cn(
+                    'font-mono text-[11px] uppercase tracking-wider',
+                    value === t.id ? 'text-accent' : 'text-text'
+                  )}
+                >
+                  {t.name}
+                </p>
+                <p className="font-mono text-[9px] text-text-dim">{t.description}</p>
+              </div>
             </div>
-            <p className="text-sm font-medium text-zinc-900">{t.name}</p>
-            <p className="text-xs text-zinc-500">{t.description}</p>
           </button>
         ))}
       </div>

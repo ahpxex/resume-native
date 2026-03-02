@@ -34,16 +34,25 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
+    <div className="mx-auto max-w-2xl px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-900">Settings</h1>
-        <p className="mt-1 text-sm text-zinc-500">Configure your LLM provider for AI-powered resume generation.</p>
+        <span className="annotation">configuration</span>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="inline-block h-1 w-1 rounded-full bg-accent/60" />
+          <span className="font-mono text-[10px] text-text-dim">llm provider settings</span>
+        </div>
       </div>
 
-      <Card>
+      <div className="mb-6 border-t border-dashed border-border-dashed" />
+
+      <Card marked>
         <CardHeader>
-          <h2 className="text-lg font-semibold text-zinc-900">LLM Provider</h2>
-          <p className="text-sm text-zinc-500">Works with any OpenAI-compatible API (OpenAI, OpenRouter, Groq, Ollama, etc.)</p>
+          <h2 className="font-mono text-xs uppercase tracking-wider text-text-muted">
+            Provider
+          </h2>
+          <p className="mt-1 font-mono text-[10px] text-text-dim">
+            Works with any OpenAI-compatible API -- OpenAI, OpenRouter, Groq, Ollama, etc.
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <Input
@@ -65,18 +74,27 @@ export function SettingsPage() {
             onChange={(e) => update('model', e.target.value)}
             placeholder="gpt-4o-mini"
           />
-          <div className="flex items-center gap-3 pt-2">
-            <Button onClick={testConnection} disabled={testing || !settings.apiKey} variant="secondary">
-              {testing ? 'Testing...' : 'Test Connection'}
-            </Button>
-            {testResult && (
-              <span className={`text-sm ${testResult.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>
-                {testResult}
-              </span>
-            )}
+
+          <div className="border-t border-dashed border-border-dashed pt-4">
+            <div className="flex items-center gap-3">
+              <Button onClick={testConnection} disabled={testing || !settings.apiKey} variant="secondary">
+                {testing ? 'Testing...' : 'Test Connection'}
+              </Button>
+              {testResult && (
+                <span
+                  className={`font-mono text-[10px] ${
+                    testResult.startsWith('Error') ? 'text-danger' : 'text-success'
+                  }`}
+                >
+                  {testResult}
+                </span>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      <div className="h-16" />
     </div>
   );
 }

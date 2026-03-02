@@ -27,14 +27,16 @@ export function ExperienceSection({ items, onChange }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-zinc-900">Work Experience</h3>
+        <span className="annotation text-text-muted">work experience</span>
         <Button variant="secondary" size="sm" onClick={add}>
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           Add
         </Button>
       </div>
       {items.length === 0 && (
-        <p className="text-sm text-zinc-400 py-4 text-center">No work experience added yet.</p>
+        <p className="text-[10px] font-mono text-text-dim py-6 text-center tracking-wide">
+          No work experience added yet.
+        </p>
       )}
       {items.map((item) => (
         <Card key={item.id}>
@@ -49,8 +51,8 @@ export function ExperienceSection({ items, onChange }: Props) {
                   <Input label="End Date" value={item.endDate || ''} onChange={(e) => update(item.id, 'endDate', e.target.value)} placeholder="Present" />
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => remove(item.id)} className="mt-6">
-                <Trash2 className="h-4 w-4 text-red-500" />
+              <Button variant="ghost" size="sm" onClick={() => remove(item.id)} className="mt-5">
+                <Trash2 className="h-3.5 w-3.5 text-danger" />
               </Button>
             </div>
             <Textarea

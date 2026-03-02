@@ -13,7 +13,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="space-y-1.5">
         {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-zinc-700">
+          <label htmlFor={inputId} className="annotation block">
             {label}
           </label>
         )}
@@ -21,8 +21,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           id={inputId}
           className={cn(
-            'block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500',
-            error && 'border-red-500 focus:border-red-500 focus:ring-red-500',
+            'block w-full rounded border border-border bg-surface px-3 py-2 font-mono text-xs text-text',
+            'focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20',
+            error && 'border-danger/50 focus:border-danger/50 focus:ring-danger/20',
             className
           )}
           {...props}
@@ -33,7 +34,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             </option>
           ))}
         </select>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="font-mono text-[10px] text-danger">{error}</p>}
       </div>
     );
   }

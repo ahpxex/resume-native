@@ -1,64 +1,98 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router';
-import { LayoutDashboard, FlaskConical, Settings, X } from 'lucide-react';
-import { useAtom } from 'jotai';
-import { sidebarOpenAtom } from '../../store/ui';
+import { LayoutDashboard, FlaskConical, Settings, Menu, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const links = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/studio', label: 'Resume Studio', icon: FlaskConical },
+  { to: '/studio', label: 'Studio', icon: FlaskConical },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function Nav() {
-  const [sidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <>
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+    <header className="relative z-50 flex h-10 shrink-0 items-center border-b border-border bg-surface px-4">
+      {/* Left -- app name */}
+      <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-text-muted select-none">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
+        <span className="text-text">resume.native</span>
+      </div>
 
-      <aside
-        className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-zinc-200 bg-white transition-transform lg:translate-x-0 lg:static lg:z-auto',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        )}
-      >
-        <div className="flex h-14 items-center justify-between border-b border-zinc-200 px-4">
-          <NavLink to="/" className="flex items-center gap-2 font-semibold text-zinc-900">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600 text-white text-sm font-bold">
-              R
-            </div>
-            Resume Native
+      {/* Center -- desktop navigation links */}
+      <nav className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-1">
+        {links.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] uppercase tracking-wider transition-colors',
+                isActive
+                  ? 'bg-accent-muted text-accent'
+                  : 'text-text-muted hover:text-text'
+              )
+            }
+          >
+            <Icon className="h-3 w-3" />
+            {label}
           </NavLink>
-          <button onClick={() => setSidebarOpen(false)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 lg:hidden">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        ))}
+      </nav>
 
-        <nav className="flex-1 space-y-1 p-3">
-          {links.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-                )
-              }
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-    </>
+      {/* Right -- version indicator (desktop) + menu button (mobile) */}
+      <div className="ml-auto flex items-center gap-3">
+        <span className="hidden md:inline font-mono text-[10px] uppercase tracking-wider text-text-dim select-none">
+          v0.1
+        </span>
+        <button
+          onClick={() => setMenuOpen((prev) => !prev)}
+          className="rounded p-1 text-text-muted transition-colors hover:text-text md:hidden"
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        >
+          {menuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+        </button>
+      </div>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 md:hidden"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div className="absolute left-0 right-0 top-full z-50 border-b border-border bg-surface p-2 md:hidden">
+            <nav className="flex flex-col gap-0.5">
+              {links.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to === '/'}
+                  onClick={() => setMenuOpen(false)}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-2 rounded px-3 py-2 font-mono text-[11px] uppercase tracking-wider transition-colors',
+                      isActive
+                        ? 'bg-accent-muted text-accent'
+                        : 'text-text-muted hover:text-text'
+                    )
+                  }
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </NavLink>
+              ))}
+            </nav>
+            <div className="mt-2 border-t border-border pt-2 text-center">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim">
+                v0.1
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+    </header>
   );
 }

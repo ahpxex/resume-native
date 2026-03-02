@@ -25,7 +25,7 @@ export function SkillsSection({ items, onChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-zinc-900">Skills</h3>
+      <span className="annotation text-text-muted">skills</span>
       <div className="flex gap-2">
         <div className="flex-1">
           <Input
@@ -40,10 +40,16 @@ export function SkillsSection({ items, onChange }: Props) {
       {items.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {items.map((skill) => (
-            <span key={skill} className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-3 py-1 text-sm text-primary-700">
+            <span
+              key={skill}
+              className="inline-flex items-center gap-1.5 bg-accent/10 border border-accent/20 text-accent font-mono text-[10px] rounded px-2.5 py-1"
+            >
               {skill}
-              <button onClick={() => removeSkill(skill)} className="rounded-full p-0.5 hover:bg-primary-100">
-                <X className="h-3 w-3" />
+              <button
+                onClick={() => removeSkill(skill)}
+                className="rounded p-0.5 hover:bg-accent/20 transition-colors"
+              >
+                <X className="h-2.5 w-2.5" />
               </button>
             </span>
           ))}

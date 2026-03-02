@@ -92,7 +92,7 @@ export function AiParser({ onAddExperience, onAddEducation, onAddProject }: Prop
       </Button>
       <Dialog open={open} onClose={() => setOpen(false)} title="AI-Assisted Parser">
         <div className="space-y-4">
-          <p className="text-sm text-zinc-500">
+          <p className="text-[10px] font-mono text-text-muted tracking-wide">
             Paste free-text describing your experience and AI will parse it into structured entries.
           </p>
           <div className="flex gap-2">
@@ -100,10 +100,10 @@ export function AiParser({ onAddExperience, onAddEducation, onAddProject }: Prop
               <button
                 key={type}
                 onClick={() => setParseType(type)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`rounded px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider transition-colors ${
                   parseType === type
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-zinc-600 hover:bg-zinc-100'
+                    ? 'bg-accent/10 text-accent border border-accent/30'
+                    : 'text-text-muted hover:bg-surface-raised border border-transparent'
                 }`}
               >
                 {type === 'work' ? 'Work Experience' : type === 'education' ? 'Education' : 'Project'}
@@ -116,11 +116,15 @@ export function AiParser({ onAddExperience, onAddEducation, onAddProject }: Prop
             placeholder="I worked at Google for 3 years as a senior frontend engineer building Search UI with React and TypeScript. Before that, I was at Meta for 2 years working on the News Feed team..."
             rows={8}
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-[10px] font-mono text-danger tracking-wide">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={parse} disabled={parsing || !text.trim()}>
-              {parsing ? 'Parsing...' : 'Parse with AI'}
+              {parsing ? (
+                <span className="text-text-muted">Parsing...</span>
+              ) : (
+                'Parse with AI'
+              )}
             </Button>
           </div>
         </div>

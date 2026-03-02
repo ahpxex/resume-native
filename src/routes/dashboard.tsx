@@ -38,61 +38,113 @@ export function Dashboard() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="mx-auto max-w-4xl px-6 py-10">
+      {/* Header */}
+      <div className="mb-8 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-zinc-500">Manage your profiles and generate tailored resumes.</p>
+          <span className="annotation">profiles</span>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
+            <span className="font-mono text-xs text-text-muted">
+              {profiles.length} registered
+            </span>
+          </div>
         </div>
-        <Button onClick={createProfile}>
-          <Plus className="h-4 w-4" />
+        <Button variant="primary" size="md" onClick={createProfile}>
+          <Plus className="h-3.5 w-3.5" />
           New Profile
         </Button>
       </div>
 
+      {/* Divider */}
+      <div className="mb-6 border-t border-dashed border-border-dashed" />
+
       {profiles.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <FileText className="mb-4 h-12 w-12 text-zinc-300" />
-            <h3 className="text-lg font-medium text-zinc-900">No profiles yet</h3>
-            <p className="mt-1 text-sm text-zinc-500">Create your first profile to get started.</p>
-            <Button className="mt-4" onClick={createProfile}>
-              <Plus className="h-4 w-4" />
+        /* Empty state */
+        <Card marked>
+          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded border border-dashed border-border-dashed">
+              <FileText className="h-5 w-5 text-text-dim" />
+            </div>
+            <span className="annotation">no profiles found</span>
+            <p className="mt-2 max-w-xs font-mono text-[11px] leading-relaxed text-text-dim">
+              Create your first profile to begin generating tailored resumes for
+              different scenarios.
+            </p>
+            <Button className="mt-5" variant="primary" size="md" onClick={createProfile}>
+              <Plus className="h-3.5 w-3.5" />
               Create Profile
             </Button>
           </CardContent>
         </Card>
       ) : (
+        /* Profile list */
         <div className="space-y-3">
           {profiles.map((profile) => {
-            const profileScenarios = scenarios.filter((s) => s.profileId === profile.id);
-            const profileResumes = resumes.filter((r) => r.profileId === profile.id);
+            const profileScenarios = scenarios.filter(
+              (s) => s.profileId === profile.id
+            );
+            const profileResumes = resumes.filter(
+              (r) => r.profileId === profile.id
+            );
+            const initial =
+              profile.personalInfo.fullName?.[0]?.toUpperCase() ||
+              profile.name[0]?.toUpperCase() ||
+              '?';
+
             return (
-              <Card key={profile.id} className="transition-shadow hover:shadow-md">
+              <Card key={profile.id} marked>
                 <CardContent className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 font-semibold">
-                    {profile.personalInfo.fullName?.[0]?.toUpperCase() || profile.name[0]?.toUpperCase() || '?'}
+                  {/* Letter indicator */}
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border-dashed font-mono text-xs text-text-muted">
+                    {initial}
                   </div>
+
+                  {/* Profile info */}
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-medium text-zinc-900 truncate">{profile.name}</h3>
-                    <p className="text-sm text-zinc-500">
-                      {profile.personalInfo.fullName || 'No name set'}
-                      {' -- '}
-                      {profileScenarios.length} scenario{profileScenarios.length !== 1 ? 's' : ''}
-                      {', '}
-                      {profileResumes.length} resume{profileResumes.length !== 1 ? 's' : ''}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm text-text">
+                        {profile.name}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-3">
+                      <span className="annotation">
+                        {profileScenarios.length} scenario
+                        {profileScenarios.length !== 1 ? 's' : ''}
+                      </span>
+                      <span className="text-text-dim">/</span>
+                      <span className="annotation">
+                        {profileResumes.length} resume
+                        {profileResumes.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
+
+                  {/* Actions */}
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => navigate(`/profiles/${profile.id}/scenarios`)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        navigate(`/profiles/${profile.id}/scenarios`)
+                      }
+                    >
                       Scenarios
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => deleteProfile(profile.id)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => navigate(`/profiles/${profile.id}`)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/profiles/${profile.id}`)}
+                    >
                       Edit
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteProfile(profile.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-danger" />
                     </Button>
                   </div>
                 </CardContent>
@@ -101,6 +153,14 @@ export function Dashboard() {
           })}
         </div>
       )}
+
+      {/* Footer annotation */}
+      <div className="mt-8 flex items-center justify-between">
+        <span className="annotation">
+          last updated -- {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toLowerCase()}
+        </span>
+        <span className="annotation">resume-native v0</span>
+      </div>
     </div>
   );
 }

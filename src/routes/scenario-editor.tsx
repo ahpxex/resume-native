@@ -15,9 +15,10 @@ export function ScenarioEditor() {
 
   if (!scenario) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center">
-        <p className="text-zinc-500">Scenario not found.</p>
-        <Button variant="secondary" className="mt-4" onClick={() => navigate(`/profiles/${profileId}/scenarios`)}>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-12 text-center">
+        <p className="annotation mb-4">scenario not found</p>
+        <Button variant="secondary" size="sm" onClick={() => navigate(`/profiles/${profileId}/scenarios`)}>
+          <ArrowLeft className="h-3 w-3" />
           Back to Scenarios
         </Button>
       </div>
@@ -29,25 +30,33 @@ export function ScenarioEditor() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-6 flex items-center gap-4">
+    <div className="mx-auto max-w-3xl px-6 py-8">
+      <div className="mb-6 flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(`/profiles/${profileId}/scenarios`)}>
-          <ArrowLeft className="h-4 w-4" />
-          Back to Scenarios
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Scenarios
         </Button>
+        <div className="mx-1 h-4 w-px bg-border-dashed" />
+        <span className="font-mono text-xs text-text-muted truncate">{scenario.name}</span>
       </div>
 
-      <Card>
+      <div className="annotation mb-4 pl-1">scenario configuration</div>
+
+      <Card marked>
         <CardHeader>
-          <h1 className="text-xl font-bold text-zinc-900">Edit Scenario</h1>
-          <p className="text-sm text-zinc-500">
-            Define the target role and job context for tailored resume generation.
+          <h2 className="font-mono text-xs uppercase tracking-wider text-text-muted">
+            Target & Context
+          </h2>
+          <p className="mt-1 font-mono text-[10px] text-text-dim">
+            Define the role and job context for tailored resume generation.
           </p>
         </CardHeader>
         <CardContent>
           <ScenarioForm value={scenario} onChange={updateScenario} />
         </CardContent>
       </Card>
+
+      <div className="h-16" />
     </div>
   );
 }

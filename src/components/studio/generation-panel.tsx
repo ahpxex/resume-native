@@ -53,7 +53,6 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
         setStreamedText(fullText);
       }
 
-      // Parse the JSON from the response
       const jsonMatch = fullText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('No valid JSON found in response');
 
@@ -81,31 +80,33 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
   const canGenerate = profile && scenario && settings.apiKey && !generating;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <Button onClick={generate} disabled={!canGenerate} className="w-full">
         {generating ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3 w-3 animate-spin" />
             Generating...
           </>
         ) : (
           <>
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-3 w-3" />
             Generate Resume
           </>
         )}
       </Button>
 
       {!settings.apiKey && (
-        <p className="text-xs text-amber-600">Configure your API key in Settings first.</p>
+        <p className="font-mono text-[10px] text-warn">Configure API key in Settings first.</p>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="font-mono text-[10px] text-danger">{error}</p>}
 
       {generating && streamedText && (
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-          <p className="mb-1 text-xs font-medium text-zinc-500">Streaming response...</p>
-          <pre className="max-h-48 overflow-auto text-xs text-zinc-700 whitespace-pre-wrap">{streamedText.slice(-500)}</pre>
+        <div className="rounded border border-dashed border-border-dashed bg-canvas p-2.5">
+          <p className="annotation mb-1.5">streaming...</p>
+          <pre className="max-h-36 overflow-auto font-mono text-[10px] leading-relaxed text-text-dim whitespace-pre-wrap">
+            {streamedText.slice(-400)}
+          </pre>
         </div>
       )}
     </div>

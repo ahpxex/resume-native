@@ -5,16 +5,20 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
 
 const variantClasses: Record<Variant, string> = {
-  primary: 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm',
-  secondary: 'bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 shadow-sm',
-  ghost: 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900',
-  danger: 'bg-red-600 text-white hover:bg-red-700 shadow-sm',
+  primary:
+    'border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 hover:border-accent/60',
+  secondary:
+    'border border-dashed border-border-dashed text-text-muted hover:text-text hover:bg-surface-raised',
+  ghost:
+    'text-text-muted hover:text-text hover:bg-surface-raised',
+  danger:
+    'border border-danger/30 bg-danger-muted text-danger hover:bg-danger/20 hover:border-danger/50',
 };
 
 const sizeClasses: Record<Size, string> = {
-  sm: 'px-2.5 py-1.5 text-xs',
-  md: 'px-3.5 py-2 text-sm',
-  lg: 'px-4 py-2.5 text-sm',
+  sm: 'px-2 py-1 text-[10px]',
+  md: 'px-3 py-1.5 text-[11px]',
+  lg: 'px-4 py-2 text-xs',
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -22,11 +26,20 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: Size;
 }
 
-export function Button({ variant = 'primary', size = 'md', className, children, disabled, ...props }: ButtonProps) {
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  className,
+  children,
+  disabled,
+  ...props
+}: ButtonProps) {
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center gap-1.5 rounded font-mono uppercase tracking-wider transition-all',
+        'focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-accent/50',
+        'disabled:pointer-events-none disabled:opacity-30',
         variantClasses[variant],
         sizeClasses[size],
         className

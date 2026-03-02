@@ -3,12 +3,17 @@ import { cn } from '../../lib/utils';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
+  marked?: boolean;
 }
 
-export function Card({ className, children, ...props }: CardProps) {
+export function Card({ className, children, marked = false, ...props }: CardProps) {
   return (
     <div
-      className={cn('rounded-xl border border-zinc-200 bg-white shadow-sm', className)}
+      className={cn(
+        'rounded border border-dashed border-border-dashed bg-surface',
+        marked && 'crop-marks',
+        className
+      )}
       {...props}
     >
       {children}
@@ -16,17 +21,28 @@ export function Card({ className, children, ...props }: CardProps) {
   );
 }
 
-export function CardHeader({ className, children, ...props }: CardProps) {
+export function CardHeader({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
   return (
-    <div className={cn('border-b border-zinc-200 px-6 py-4', className)} {...props}>
+    <div
+      className={cn('border-b border-dashed border-border-dashed px-5 py-3', className)}
+      {...props}
+    >
       {children}
     </div>
   );
 }
 
-export function CardContent({ className, children, ...props }: CardProps) {
+export function CardContent({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
   return (
-    <div className={cn('px-6 py-4', className)} {...props}>
+    <div className={cn('px-5 py-4', className)} {...props}>
       {children}
     </div>
   );
