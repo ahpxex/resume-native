@@ -6,5 +6,6 @@ export function getModel(settings: LLMSettings) {
     apiKey: settings.apiKey,
     baseURL: settings.baseUrl,
   });
-  return provider(settings.model);
+  // Chat Completions has the broadest support across OpenAI-compatible providers.
+  return provider.chat(settings.model);
 }

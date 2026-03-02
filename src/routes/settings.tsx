@@ -51,7 +51,7 @@ export function SettingsPage() {
             Provider
           </h2>
           <p className="mt-1 font-mono text-[10px] text-text-dim">
-            Works with any OpenAI-compatible API -- OpenAI, OpenRouter, Groq, Ollama, etc.
+            Works with OpenAI Chat Completions-compatible APIs -- OpenAI, OpenRouter, Groq, Ollama, etc.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
