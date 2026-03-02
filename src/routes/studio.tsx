@@ -6,6 +6,7 @@ import { profilesAtom } from '../store/profiles';
 import { scenariosAtom } from '../store/scenarios';
 import { activeResumeAtom } from '../store/resumes';
 import { Button } from '../components/ui/button';
+import { Select } from '../components/ui/select';
 import { TemplatePicker } from '../components/studio/template-picker';
 import { GenerationPanel } from '../components/studio/generation-panel';
 import { ResumePreview } from '../components/studio/resume-preview';
@@ -64,45 +65,31 @@ export function Studio() {
         <div className="border-t border-dashed border-border-dashed" />
 
         {/* Profile selector */}
-        <div className="space-y-1.5">
-          <label className="annotation block">Profile</label>
-          <select
-            className="block w-full rounded border border-border bg-canvas px-3 py-2 font-mono text-xs text-text focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20"
-            value={selectedProfileId}
-            onChange={(e) => {
-              setSelectedProfileId(e.target.value);
-              setSelectedScenarioId('');
-            }}
-          >
-            <option value="">Select a profile...</option>
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="Profile"
+          placeholder="Select a profile..."
+          options={profiles.map((p) => ({ value: p.id, label: p.name }))}
+          value={selectedProfileId}
+          onChange={(val) => {
+            setSelectedProfileId(val);
+            setSelectedScenarioId('');
+          }}
+        />
 
         {/* Scenario selector */}
         {selectedProfileId && (
-          <div className="space-y-1.5">
-            <label className="annotation block">Scenario</label>
-            <select
-              className="block w-full rounded border border-border bg-canvas px-3 py-2 font-mono text-xs text-text focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20"
+          <>
+            <Select
+              label="Scenario"
+              placeholder="Select a scenario..."
+              options={filteredScenarios.map((s) => ({ value: s.id, label: s.name }))}
               value={selectedScenarioId}
-              onChange={(e) => setSelectedScenarioId(e.target.value)}
-            >
-              <option value="">Select a scenario...</option>
-              {filteredScenarios.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedScenarioId(val)}
+            />
             {filteredScenarios.length === 0 && (
               <p className="font-mono text-[10px] text-warn">No scenarios for this profile.</p>
             )}
-          </div>
+          </>
         )}
 
         <div className="border-t border-dashed border-border-dashed" />

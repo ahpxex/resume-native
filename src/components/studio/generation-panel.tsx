@@ -1,17 +1,24 @@
 import { useState } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { Sparkles, Loader2 } from 'lucide-react';
-import { streamText } from 'ai';
+import {
+  Sparkles,
+  Loader2,
+  FileText,
+  Briefcase,
+  GraduationCap,
+  FolderOpen,
+  Wrench,
+  Check,
+} from 'lucide-react';
 import { profilesAtom } from '../../store/profiles';
 import { scenariosAtom } from '../../store/scenarios';
 import { resumesAtom, activeResumeAtom } from '../../store/resumes';
 import { llmSettingsAtom } from '../../store/settings';
 import { generatingAtom } from '../../store/ui';
-import { getModel } from '../../lib/ai';
-import { buildResumeGenerationPrompt } from '../../lib/prompts';
+import { generateResume } from '../../lib/resume-agent';
 import { generateId } from '../../lib/utils';
 import { Button } from '../ui/button';
-import type { ResumeContent } from '../../types';
+import type { AgentStep } from '../../types';
 
 interface Props {
   profileId: string;
@@ -19,6 +26,25 @@ interface Props {
   templateId: string;
 }
 
+function stepIcon(kind: string) {
+  const cls = 'h-2.5 w-2.5 text-text-muted';
+  switch (kind) {
+    case 'write_summary':
+      return <FileText className={cls} />;
+    case 'write_work_experience':
+      return <Briefcase className={cls} />;
+    case 'write_education':
+      return <GraduationCap className={cls} />;
+    case 'write_project':
+      return <FolderOpen className={cls} />;
+    case 'set_skills':
+      return <Wrench className={cls} />;
+    case 'finalize_resume':
+      return <Check className={cls} />;
+    default:
+      return <Sparkles className={cls} />;
+  }
+}
 export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
   const profiles = useAtomValue(profilesAtom);
   const scenarios = useAtomValue(scenariosAtom);
@@ -26,7 +52,7 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
   const [generating, setGenerating] = useAtom(generatingAtom);
   const setResumes = useSetAtom(resumesAtom);
   const setActiveResume = useSetAtom(activeResumeAtom);
-  const [streamedText, setStreamedText] = useState('');
+  const [steps, setSteps] = useState<AgentStep[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const profile = profiles.find((p) => p.id === profileId);
@@ -36,27 +62,17 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
     if (!profile || !scenario || !settings.apiKey) return;
     setGenerating(true);
     setError(null);
-    setStreamedText('');
+    setSteps([]);
 
     try {
-      const model = getModel(settings);
-      const prompt = buildResumeGenerationPrompt(profile, scenario);
-
-      const result = streamText({
-        model,
-        prompt,
+      const content = await generateResume({
+        profile,
+        scenario,
+        settings,
+        onStep(step) {
+          setSteps((prev) => [...prev, step]);
+        },
       });
-
-      let fullText = '';
-      for await (const chunk of result.textStream) {
-        fullText += chunk;
-        setStreamedText(fullText);
-      }
-
-      const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('No valid JSON found in response');
-
-      const content: ResumeContent = JSON.parse(jsonMatch[0]);
 
       const resume = {
         id: generateId(),
@@ -69,14 +85,13 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
 
       setResumes((prev) => [...prev, resume]);
       setActiveResume(resume);
-      setStreamedText('');
+      setSteps([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed');
     } finally {
       setGenerating(false);
     }
   }
-
   const canGenerate = profile && scenario && settings.apiKey && !generating;
 
   return (
@@ -101,12 +116,22 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
 
       {error && <p className="font-mono text-[10px] text-danger">{error}</p>}
 
-      {generating && streamedText && (
+      {generating && steps.length > 0 && (
         <div className="rounded border border-dashed border-border-dashed bg-canvas p-2.5">
-          <p className="annotation mb-1.5">streaming...</p>
-          <pre className="max-h-36 overflow-auto font-mono text-[10px] leading-relaxed text-text-dim whitespace-pre-wrap">
-            {streamedText.slice(-400)}
-          </pre>
+          <p className="annotation mb-1.5">building resume...</p>
+          <ul className="space-y-1">
+            {steps.map((step, i) => (
+              <li key={i} className="flex items-center gap-1.5 font-mono text-[10px] text-text-dim">
+                {stepIcon(step.kind)}
+                <span>{step.label}</span>
+                {step.detail && <span className="text-text-muted">-- {step.detail}</span>}
+              </li>
+            ))}
+            <li className="flex items-center gap-1.5 font-mono text-[10px] text-text-dim">
+              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+              <span>Thinking...</span>
+            </li>
+          </ul>
         </div>
       )}
     </div>

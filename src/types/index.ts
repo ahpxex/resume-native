@@ -108,3 +108,10 @@ export interface LLMSettings {
   baseUrl: string;
   model: string;
 }
+
+export interface AgentStep {
+  kind: string;
+  label: string;
+  detail?: string;
+  timestamp: number;
+}
