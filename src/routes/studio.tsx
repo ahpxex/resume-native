@@ -1,20 +1,23 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Download } from 'lucide-react';
 import { profilesAtom } from '../store/profiles';
 import { scenariosAtom } from '../store/scenarios';
-import { activeResumeAtom } from '../store/resumes';
+import { activeResumeAtom, resumesAtom } from '../store/resumes';
 import { Button } from '../components/ui/button';
 import { Select } from '../components/ui/select';
 import { TemplatePicker } from '../components/studio/template-picker';
 import { GenerationPanel } from '../components/studio/generation-panel';
 import { ResumePreview } from '../components/studio/resume-preview';
+import { ResumeEditorPanel } from '../components/studio/resume-editor-panel';
 import { templateRegistry } from '../templates/registry';
 import { buildResumePdfBlob } from '../lib/resume-pdf';
+import type { ResumeContent } from '../types';
 
 export function Studio() {
   const profiles = useAtomValue(profilesAtom);
   const scenarios = useAtomValue(scenariosAtom);
+  const [, setResumes] = useAtom(resumesAtom);
   const [activeResume, setActiveResume] = useAtom(activeResumeAtom);
 
   const [selectedProfileId, setSelectedProfileId] = useState('');
@@ -50,6 +53,22 @@ export function Studio() {
       setActiveResume({ ...activeResume, templateId });
     }
   }
+
+  const handleResumeContentChange = useCallback((resumeId: string, content: ResumeContent) => {
+    setActiveResume((current) => {
+      if (!current || current.id !== resumeId) return current;
+      if (current.content === content) return current;
+      return { ...current, content };
+    });
+
+    setResumes((current) =>
+      current.map((resume) =>
+        resume.id === resumeId
+          ? (resume.content === content ? resume : { ...resume, content })
+          : resume
+      )
+    );
+  }, [setActiveResume, setResumes]);
 
   return (
     <div className="flex h-full">
@@ -119,9 +138,20 @@ export function Studio() {
         )}
       </div>
 
-      {/* Right panel -- preview */}
-      <div className="flex-1 bg-canvas p-4">
-        <ResumePreview />
+      {/* Right panel -- preview + editor */}
+      <div className="flex-1 min-w-0 bg-canvas p-4">
+        <div className="flex h-full gap-4">
+          <div className="min-w-0 flex-1">
+            <ResumePreview />
+          </div>
+          <div className="w-[26rem] shrink-0">
+            <ResumeEditorPanel
+              key={activeResume?.id ?? 'no-resume'}
+              resume={activeResume}
+              onContentChange={handleResumeContentChange}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
