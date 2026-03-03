@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
+import { Plus } from 'lucide-react';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { activeResumeAtom } from '../../store/resumes';
 import { profilesAtom } from '../../store/profiles';
 import { templateRegistry } from '../../templates/registry';
 import { buildResumePdfBlob } from '../../lib/resume-pdf';
+import { Button } from '../ui/button';
 import type { ResumeContent } from '../../types';
 
 const PREVIEW_PAGE_WIDTH = 980;
@@ -60,6 +62,37 @@ function isPdfTextItemLike(item: unknown): item is PdfTextItemLike {
 
 function normalizeText(value: string) {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function createQuickAddExperience() {
+  return {
+    company: 'New Company',
+    position: 'New Role',
+    location: '',
+    startDate: '2024-01',
+    endDate: 'Present',
+    bullets: ['Add a measurable impact bullet.'],
+  };
+}
+
+function createQuickAddEducation() {
+  return {
+    institution: 'New School',
+    degree: 'Degree',
+    field: 'Field of Study',
+    startDate: '2020',
+    endDate: '2024',
+    details: ['Add a relevant highlight.'],
+  };
+}
+
+function createQuickAddProject() {
+  return {
+    name: 'New Project',
+    description: 'Describe the project impact in one sentence.',
+    technologies: ['React'],
+    url: '',
+  };
 }
 
 function replaceFirstFieldMatch(content: ResumeContent, targetText: string, nextText: string) {
@@ -342,6 +375,40 @@ export function ResumePreview({ onContentChange }: Props) {
     setLineDraft('');
   }
 
+  function quickAddBlock(kind: 'experience' | 'education' | 'project' | 'skill') {
+    if (!activeResume) return;
+
+    const nextContent: ResumeContent = (() => {
+      if (kind === 'experience') {
+        return {
+          ...activeResume.content,
+          workExperience: [...activeResume.content.workExperience, createQuickAddExperience()],
+        };
+      }
+
+      if (kind === 'education') {
+        return {
+          ...activeResume.content,
+          education: [...activeResume.content.education, createQuickAddEducation()],
+        };
+      }
+
+      if (kind === 'project') {
+        return {
+          ...activeResume.content,
+          projects: [...activeResume.content.projects, createQuickAddProject()],
+        };
+      }
+
+      return {
+        ...activeResume.content,
+        skills: [...activeResume.content.skills, 'New Skill'],
+      };
+    })();
+
+    onContentChange(activeResume.id, nextContent);
+  }
+
   if (!activeResume) {
     return (
       <div className="flex h-full items-center justify-center rounded border border-dashed border-border-dashed bg-surface">
@@ -362,6 +429,24 @@ export function ResumePreview({ onContentChange }: Props) {
       <p className="mb-3 font-mono text-[10px] text-text-dim">
         Click a text line on the canvas to edit directly.
       </p>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('experience')}>
+          <Plus className="h-3 w-3" />
+          Experience
+        </Button>
+        <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('education')}>
+          <Plus className="h-3 w-3" />
+          Education
+        </Button>
+        <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('project')}>
+          <Plus className="h-3 w-3" />
+          Project
+        </Button>
+        <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('skill')}>
+          <Plus className="h-3 w-3" />
+          Skill
+        </Button>
+      </div>
 
       {rendering && (
         <p className="mb-3 font-mono text-[10px] text-text-dim">
