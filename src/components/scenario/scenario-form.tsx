@@ -7,8 +7,15 @@ interface Props {
   onChange: (scenario: Scenario) => void;
 }
 
+type ScenarioEditableField =
+  | 'name'
+  | 'targetRole'
+  | 'targetCompany'
+  | 'jobDescription'
+  | 'customInstructions';
+
 export function ScenarioForm({ value, onChange }: Props) {
-  function update(field: keyof Scenario, val: string) {
+  function update(field: ScenarioEditableField, val: string) {
     onChange({ ...value, [field]: val, updatedAt: Date.now() });
   }
 

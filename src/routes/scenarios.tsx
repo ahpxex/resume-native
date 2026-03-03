@@ -3,6 +3,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { Plus, ArrowLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { profilesAtom } from '../store/profiles';
 import { scenariosAtom } from '../store/scenarios';
+import { activeResumeAtom, resumesAtom } from '../store/resumes';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { generateId } from '../lib/utils';
@@ -13,6 +14,8 @@ export function Scenarios() {
   const navigate = useNavigate();
   const profiles = useAtomValue(profilesAtom);
   const [scenarios, setScenarios] = useAtom(scenariosAtom);
+  const [resumes, setResumes] = useAtom(resumesAtom);
+  const [activeResume, setActiveResume] = useAtom(activeResumeAtom);
 
   const profile = profiles.find((p) => p.id === profileId);
   const profileScenarios = scenarios.filter((s) => s.profileId === profileId);
@@ -45,6 +48,14 @@ export function Scenarios() {
 
   function deleteScenario(scenarioId: string) {
     setScenarios((prev) => prev.filter((s) => s.id !== scenarioId));
+    setResumes((prev) => prev.filter((resume) => resume.scenarioId !== scenarioId));
+    if (activeResume?.scenarioId === scenarioId) {
+      const fallbackResume = resumes.find((resume) =>
+        resume.profileId === profileId
+        && resume.scenarioId !== scenarioId
+      ) ?? null;
+      setActiveResume(fallbackResume);
+    }
   }
 
   return (

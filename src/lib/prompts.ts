@@ -1,5 +1,9 @@
 import type { Profile, Scenario } from '../types';
 
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
 export function buildAgentSystemPrompt(): string {
   return `You are an expert resume writer. You will be given a candidate's profile and a target job scenario. Your job is to craft a tailored, compelling resume by calling the provided tools section by section.
 
@@ -20,23 +24,31 @@ Guidelines:
 }
 
 export function buildAgentUserPrompt(profile: Profile, scenario: Scenario): string {
+  const workExperience = asArray<Profile['workExperience'][number]>(profile.workExperience);
+  const education = asArray<Profile['education'][number]>(profile.education);
+  const projects = asArray<Profile['projects'][number]>(profile.projects);
+  const skills = asArray<string>(profile.skills);
+
   return `## Candidate Profile
 Name: ${profile.personalInfo.fullName}
 ${profile.personalInfo.location ? `Location: ${profile.personalInfo.location}` : ''}
 
 ### Work Experience
-${profile.workExperience.map((w) => `- ${w.position} at ${w.company} (${w.startDate}${w.endDate ? ` to ${w.endDate}` : ' to Present'})${w.location ? `, ${w.location}` : ''}
+${workExperience.map((w) => `- ${w.position} at ${w.company} (${w.startDate}${w.endDate ? ` to ${w.endDate}` : ' to Present'})${w.location ? `, ${w.location}` : ''}
   ${w.description}`).join('\n')}
 
 ### Education
-${profile.education.map((e) => `- ${e.degree} in ${e.field} at ${e.institution} (${e.startDate}${e.endDate ? ` to ${e.endDate}` : ' to Present'})
+${education.map((e) => `- ${e.degree} in ${e.field} at ${e.institution} (${e.startDate}${e.endDate ? ` to ${e.endDate}` : ' to Present'})
   ${e.description}`).join('\n')}
 
 ### Projects
-${profile.projects.map((p) => `- ${p.name}: ${p.description} (Technologies: ${p.technologies.join(', ')})${p.url ? ` URL: ${p.url}` : ''}`).join('\n')}
+${projects.map((p) => {
+  const technologies = asArray<string>(p.technologies).join(', ');
+  return `- ${p.name}: ${p.description} (Technologies: ${technologies})${p.url ? ` URL: ${p.url}` : ''}`;
+}).join('\n')}
 
 ### Skills
-${profile.skills.join(', ')}
+${skills.join(', ')}
 
 ## Target Scenario
 Role: ${scenario.targetRole}
@@ -58,6 +70,11 @@ For projects, extract: name, description, technologies (array of strings), and u
 Be thorough and preserve all important details from the original text. If dates are ambiguous, make reasonable estimates. Return valid JSON matching the requested schema.`;
 
 export function buildResumeGenerationPrompt(profile: Profile, scenario: Scenario): string {
+  const workExperience = asArray<Profile['workExperience'][number]>(profile.workExperience);
+  const education = asArray<Profile['education'][number]>(profile.education);
+  const projects = asArray<Profile['projects'][number]>(profile.projects);
+  const skills = asArray<string>(profile.skills);
+
   return `You are an expert resume writer. Generate tailored resume content based on the following context.
 
 ## Candidate Profile
@@ -65,18 +82,21 @@ Name: ${profile.personalInfo.fullName}
 ${profile.personalInfo.location ? `Location: ${profile.personalInfo.location}` : ''}
 
 ### Work Experience
-${profile.workExperience.map((w) => `- ${w.position} at ${w.company} (${w.startDate}${w.endDate ? ` to ${w.endDate}` : ' to Present'})${w.location ? `, ${w.location}` : ''}
+${workExperience.map((w) => `- ${w.position} at ${w.company} (${w.startDate}${w.endDate ? ` to ${w.endDate}` : ' to Present'})${w.location ? `, ${w.location}` : ''}
   ${w.description}`).join('\n')}
 
 ### Education
-${profile.education.map((e) => `- ${e.degree} in ${e.field} at ${e.institution} (${e.startDate}${e.endDate ? ` to ${e.endDate}` : ' to Present'})
+${education.map((e) => `- ${e.degree} in ${e.field} at ${e.institution} (${e.startDate}${e.endDate ? ` to ${e.endDate}` : ' to Present'})
   ${e.description}`).join('\n')}
 
 ### Projects
-${profile.projects.map((p) => `- ${p.name}: ${p.description} (Technologies: ${p.technologies.join(', ')})${p.url ? ` URL: ${p.url}` : ''}`).join('\n')}
+${projects.map((p) => {
+  const technologies = asArray<string>(p.technologies).join(', ');
+  return `- ${p.name}: ${p.description} (Technologies: ${technologies})${p.url ? ` URL: ${p.url}` : ''}`;
+}).join('\n')}
 
 ### Skills
-${profile.skills.join(', ')}
+${skills.join(', ')}
 
 ## Target Scenario
 Role: ${scenario.targetRole}

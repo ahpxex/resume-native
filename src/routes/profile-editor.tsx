@@ -34,22 +34,28 @@ export function ProfileEditor() {
     );
   }
 
-  function updateProfile(updates: Partial<Profile>) {
+  function updateProfile(
+    updates: Partial<Profile> | ((current: Profile) => Partial<Profile>)
+  ) {
     setProfiles((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p))
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const resolvedUpdates = typeof updates === 'function' ? updates(p) : updates;
+        return { ...p, ...resolvedUpdates, updatedAt: Date.now() };
+      })
     );
   }
 
   function handleAddExperience(items: WorkExperience[]) {
-    updateProfile({ workExperience: [...profile!.workExperience, ...items] });
+    updateProfile((current) => ({ workExperience: [...current.workExperience, ...items] }));
   }
 
   function handleAddEducation(items: Education[]) {
-    updateProfile({ education: [...profile!.education, ...items] });
+    updateProfile((current) => ({ education: [...current.education, ...items] }));
   }
 
   function handleAddProject(items: Project[]) {
-    updateProfile({ projects: [...profile!.projects, ...items] });
+    updateProfile((current) => ({ projects: [...current.projects, ...items] }));
   }
 
   return (

@@ -11,7 +11,7 @@ import type { Profile } from '../types';
 
 export function Dashboard() {
   const [profiles, setProfiles] = useAtom(profilesAtom);
-  const [scenarios] = useAtom(scenariosAtom);
+  const [scenarios, setScenarios] = useAtom(scenariosAtom);
   const [resumes, setResumes] = useAtom(resumesAtom);
   const navigate = useNavigate();
 
@@ -34,6 +34,7 @@ export function Dashboard() {
 
   function deleteProfile(id: string) {
     setProfiles((prev) => prev.filter((p) => p.id !== id));
+    setScenarios((prev) => prev.filter((s) => s.profileId !== id));
     setResumes((prev) => prev.filter((r) => r.profileId !== id));
   }
 

@@ -42,13 +42,23 @@ interface PdfTextItemLike {
 interface EditingLine {
   pageIndex: number;
   lineId: string;
-  originalText: string;
+  fieldRef: EditableFieldRef | null;
 }
 
 type BlockContext =
   | { kind: 'experience'; index: number }
   | { kind: 'education'; index: number }
   | { kind: 'project'; index: number }
+  | { kind: 'skill'; index: number };
+
+type EditableFieldRef =
+  | { kind: 'summary' }
+  | { kind: 'experience'; index: number; field: 'company' | 'position' | 'location' | 'startDate' | 'endDate' }
+  | { kind: 'experienceBullet'; index: number; bulletIndex: number }
+  | { kind: 'education'; index: number; field: 'institution' | 'degree' | 'field' | 'startDate' | 'endDate' }
+  | { kind: 'educationDetail'; index: number; detailIndex: number }
+  | { kind: 'project'; index: number; field: 'name' | 'description' | 'url' }
+  | { kind: 'projectTechnology'; index: number; technologyIndex: number }
   | { kind: 'skill'; index: number };
 
 interface ActiveLineContext {
@@ -58,7 +68,7 @@ interface ActiveLineContext {
 }
 
 interface Props {
-  onContentChange: (resumeId: string, content: ResumeContent) => void;
+  onContentChange: (resumeId: string, updater: (content: ResumeContent) => ResumeContent) => void;
 }
 
 function isPdfTextItemLike(item: unknown): item is PdfTextItemLike {
@@ -80,15 +90,15 @@ function normalizeMatchText(value: string) {
   return normalizeText(value).replace(/^[•*\\-]\\s*/, '').toLowerCase();
 }
 
-function textMatchesValue(value: string, target: string) {
+function getTextMatchScore(value: string, target: string) {
   const left = normalizeMatchText(value);
   const right = normalizeMatchText(target);
 
-  if (!left || !right) return false;
-  if (left === right) return true;
-  if (right.length >= 4 && left.includes(right)) return true;
-  if (left.length >= 4 && right.includes(left)) return true;
-  return false;
+  if (!left || !right) return 0;
+  if (left === right) return 3;
+  if (right.length >= 4 && left.includes(right)) return 2;
+  if (left.length >= 4 && right.includes(left)) return 1;
+  return 0;
 }
 
 function createQuickAddExperience() {
@@ -140,117 +150,191 @@ function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number) {
   return next;
 }
 
-function findBlockContext(content: ResumeContent, targetText: string): BlockContext | null {
-  for (const [index, experience] of content.workExperience.entries()) {
-    const fields = [
-      experience.company,
-      experience.position,
-      experience.location || '',
-      experience.startDate,
-      experience.endDate || '',
-      ...experience.bullets,
-    ];
-
-    if (fields.some((value) => textMatchesValue(value, targetText))) {
-      return { kind: 'experience', index };
-    }
+function getBlockContextFromFieldRef(fieldRef: EditableFieldRef | null): BlockContext | null {
+  if (!fieldRef || fieldRef.kind === 'summary') return null;
+  if (fieldRef.kind === 'experience' || fieldRef.kind === 'experienceBullet') {
+    return { kind: 'experience', index: fieldRef.index };
   }
-
-  for (const [index, education] of content.education.entries()) {
-    const fields = [
-      education.institution,
-      education.degree,
-      education.field,
-      education.startDate,
-      education.endDate || '',
-      ...(education.details || []),
-    ];
-
-    if (fields.some((value) => textMatchesValue(value, targetText))) {
-      return { kind: 'education', index };
-    }
+  if (fieldRef.kind === 'education' || fieldRef.kind === 'educationDetail') {
+    return { kind: 'education', index: fieldRef.index };
   }
-
-  for (const [index, project] of content.projects.entries()) {
-    const fields = [project.name, project.description, project.url || '', ...project.technologies];
-    if (fields.some((value) => textMatchesValue(value, targetText))) {
-      return { kind: 'project', index };
-    }
+  if (fieldRef.kind === 'project' || fieldRef.kind === 'projectTechnology') {
+    return { kind: 'project', index: fieldRef.index };
   }
-
-  for (const [index, skill] of content.skills.entries()) {
-    if (textMatchesValue(skill, targetText)) {
-      return { kind: 'skill', index };
-    }
-  }
-
-  return null;
+  return { kind: 'skill', index: fieldRef.index };
 }
 
-function replaceFirstFieldMatch(content: ResumeContent, targetText: string, nextText: string) {
-  const target = normalizeText(targetText);
-  if (!target || target.length < MIN_EDITABLE_TEXT_LENGTH) {
+interface EditableFieldCandidate {
+  fieldRef: EditableFieldRef;
+  value: string;
+}
+
+function listEditableFieldCandidates(content: ResumeContent): EditableFieldCandidate[] {
+  const candidates: EditableFieldCandidate[] = [];
+  candidates.push({ fieldRef: { kind: 'summary' }, value: content.summary });
+
+  content.workExperience.forEach((experience, index) => {
+    candidates.push({ fieldRef: { kind: 'experience', index, field: 'company' }, value: experience.company });
+    candidates.push({ fieldRef: { kind: 'experience', index, field: 'position' }, value: experience.position });
+    candidates.push({ fieldRef: { kind: 'experience', index, field: 'location' }, value: experience.location || '' });
+    candidates.push({ fieldRef: { kind: 'experience', index, field: 'startDate' }, value: experience.startDate });
+    candidates.push({ fieldRef: { kind: 'experience', index, field: 'endDate' }, value: experience.endDate || '' });
+    experience.bullets.forEach((bullet, bulletIndex) => {
+      candidates.push({
+        fieldRef: { kind: 'experienceBullet', index, bulletIndex },
+        value: bullet,
+      });
+    });
+  });
+
+  content.education.forEach((education, index) => {
+    candidates.push({ fieldRef: { kind: 'education', index, field: 'institution' }, value: education.institution });
+    candidates.push({ fieldRef: { kind: 'education', index, field: 'degree' }, value: education.degree });
+    candidates.push({ fieldRef: { kind: 'education', index, field: 'field' }, value: education.field });
+    candidates.push({ fieldRef: { kind: 'education', index, field: 'startDate' }, value: education.startDate });
+    candidates.push({ fieldRef: { kind: 'education', index, field: 'endDate' }, value: education.endDate || '' });
+    (education.details ?? []).forEach((detail, detailIndex) => {
+      candidates.push({
+        fieldRef: { kind: 'educationDetail', index, detailIndex },
+        value: detail,
+      });
+    });
+  });
+
+  content.projects.forEach((project, index) => {
+    candidates.push({ fieldRef: { kind: 'project', index, field: 'name' }, value: project.name });
+    candidates.push({ fieldRef: { kind: 'project', index, field: 'description' }, value: project.description });
+    candidates.push({ fieldRef: { kind: 'project', index, field: 'url' }, value: project.url || '' });
+    project.technologies.forEach((technology, technologyIndex) => {
+      candidates.push({
+        fieldRef: { kind: 'projectTechnology', index, technologyIndex },
+        value: technology,
+      });
+    });
+  });
+
+  content.skills.forEach((skill, index) => {
+    candidates.push({ fieldRef: { kind: 'skill', index }, value: skill });
+  });
+
+  return candidates;
+}
+
+function findEditableFieldRef(
+  content: ResumeContent,
+  targetText: string,
+  occurrence: number
+): EditableFieldRef | null {
+  const matches = listEditableFieldCandidates(content)
+    .map((candidate) => ({
+      ...candidate,
+      score: getTextMatchScore(candidate.value, targetText),
+    }))
+    .filter((candidate) => candidate.score > 0);
+
+  if (matches.length === 0) return null;
+
+  const strongestScore = Math.max(...matches.map((candidate) => candidate.score));
+  const strongestMatches = matches.filter((candidate) => candidate.score === strongestScore);
+  const boundedOccurrence = Math.max(0, Math.min(occurrence, strongestMatches.length - 1));
+  return strongestMatches[boundedOccurrence]?.fieldRef ?? strongestMatches[0]?.fieldRef ?? null;
+}
+
+function replaceByIndex<T>(items: T[], index: number, updater: (item: T) => T) {
+  if (index < 0 || index >= items.length) return items;
+  const nextItem = updater(items[index] as T);
+  if (nextItem === items[index]) return items;
+  const next = [...items];
+  next[index] = nextItem;
+  return next;
+}
+
+function applyFieldRefEdit(content: ResumeContent, fieldRef: EditableFieldRef, nextText: string) {
+  if (nextText.length < MIN_EDITABLE_TEXT_LENGTH) {
     return { changed: false, content };
   }
 
-  let changed = false;
+  if (fieldRef.kind === 'summary') {
+    if (content.summary === nextText) return { changed: false, content };
+    return { changed: true, content: { ...content, summary: nextText } };
+  }
 
-  const replaceValue = (value: string) => {
-    if (changed) return value;
+  if (fieldRef.kind === 'experience') {
+    const list = replaceByIndex(content.workExperience, fieldRef.index, (experience) => {
+      if (experience[fieldRef.field] === nextText) return experience;
+      return { ...experience, [fieldRef.field]: nextText };
+    });
 
-    const trimmed = value.trim();
-    if (!trimmed) return value;
+    if (list === content.workExperience) return { changed: false, content };
+    return { changed: true, content: { ...content, workExperience: list } };
+  }
 
-    if (trimmed === target) {
-      changed = true;
-      return nextText;
-    }
+  if (fieldRef.kind === 'experienceBullet') {
+    const list = replaceByIndex(content.workExperience, fieldRef.index, (experience) => {
+      const bullets = replaceByIndex(experience.bullets, fieldRef.bulletIndex, (bullet) =>
+        bullet === nextText ? bullet : nextText
+      );
+      if (bullets === experience.bullets) return experience;
+      return { ...experience, bullets };
+    });
 
-    if (target.length >= 4 && value.includes(target)) {
-      changed = true;
-      return value.replace(target, nextText);
-    }
+    if (list === content.workExperience) return { changed: false, content };
+    return { changed: true, content: { ...content, workExperience: list } };
+  }
 
-    const normalizedValue = normalizeText(value);
-    if (target.length >= 4 && normalizedValue.includes(target)) {
-      changed = true;
-      return normalizedValue.replace(target, nextText);
-    }
+  if (fieldRef.kind === 'education') {
+    const list = replaceByIndex(content.education, fieldRef.index, (education) => {
+      if (education[fieldRef.field] === nextText) return education;
+      return { ...education, [fieldRef.field]: nextText };
+    });
 
-    return value;
-  };
+    if (list === content.education) return { changed: false, content };
+    return { changed: true, content: { ...content, education: list } };
+  }
 
-  const updated: ResumeContent = {
-    summary: replaceValue(content.summary),
-    workExperience: content.workExperience.map((job) => ({
-      ...job,
-      company: replaceValue(job.company),
-      position: replaceValue(job.position),
-      location: replaceValue(job.location || ''),
-      startDate: replaceValue(job.startDate),
-      endDate: replaceValue(job.endDate || ''),
-      bullets: job.bullets.map((bullet) => replaceValue(bullet)),
-    })),
-    education: content.education.map((education) => ({
-      ...education,
-      institution: replaceValue(education.institution),
-      degree: replaceValue(education.degree),
-      field: replaceValue(education.field),
-      startDate: replaceValue(education.startDate),
-      endDate: replaceValue(education.endDate || ''),
-      details: education.details?.map((detail) => replaceValue(detail)),
-    })),
-    projects: content.projects.map((project) => ({
-      ...project,
-      name: replaceValue(project.name),
-      description: replaceValue(project.description),
-      url: replaceValue(project.url || ''),
-      technologies: project.technologies.map((tech) => replaceValue(tech)),
-    })),
-    skills: content.skills.map((skill) => replaceValue(skill)),
-  };
+  if (fieldRef.kind === 'educationDetail') {
+    const list = replaceByIndex(content.education, fieldRef.index, (education) => {
+      const details = education.details ?? [];
+      const nextDetails = replaceByIndex(details, fieldRef.detailIndex, (detail) =>
+        detail === nextText ? detail : nextText
+      );
+      if (nextDetails === details) return education;
+      return { ...education, details: nextDetails };
+    });
 
-  return { changed, content: updated };
+    if (list === content.education) return { changed: false, content };
+    return { changed: true, content: { ...content, education: list } };
+  }
+
+  if (fieldRef.kind === 'project') {
+    const list = replaceByIndex(content.projects, fieldRef.index, (project) => {
+      if (project[fieldRef.field] === nextText) return project;
+      return { ...project, [fieldRef.field]: nextText };
+    });
+
+    if (list === content.projects) return { changed: false, content };
+    return { changed: true, content: { ...content, projects: list } };
+  }
+
+  if (fieldRef.kind === 'projectTechnology') {
+    const list = replaceByIndex(content.projects, fieldRef.index, (project) => {
+      const technologies = replaceByIndex(project.technologies, fieldRef.technologyIndex, (technology) =>
+        technology === nextText ? technology : nextText
+      );
+      if (technologies === project.technologies) return project;
+      return { ...project, technologies };
+    });
+
+    if (list === content.projects) return { changed: false, content };
+    return { changed: true, content: { ...content, projects: list } };
+  }
+
+  const nextSkills = replaceByIndex(content.skills, fieldRef.index, (skill) =>
+    skill === nextText ? skill : nextText
+  );
+
+  if (nextSkills === content.skills) return { changed: false, content };
+  return { changed: true, content: { ...content, skills: nextSkills } };
 }
 
 function buildTextLines(
@@ -318,6 +402,28 @@ function buildTextLines(
     .filter((line): line is TextLine => Boolean(line));
 }
 
+function getLineOccurrence(pages: PreviewPage[], pageIndex: number, lineId: string, lineText: string) {
+  const targetText = normalizeMatchText(lineText);
+  let occurrence = 0;
+
+  for (let currentPageIndex = 0; currentPageIndex <= pageIndex; currentPageIndex += 1) {
+    const page = pages[currentPageIndex];
+    if (!page) continue;
+
+    for (const line of page.lines) {
+      if (normalizeMatchText(line.text) !== targetText) continue;
+
+      if (currentPageIndex === pageIndex && line.id === lineId) {
+        return occurrence;
+      }
+
+      occurrence += 1;
+    }
+  }
+
+  return occurrence;
+}
+
 export function ResumePreview({ onContentChange }: Props) {
   const activeResume = useAtomValue(activeResumeAtom);
   const profiles = useAtomValue(profilesAtom);
@@ -347,9 +453,31 @@ export function ResumePreview({ onContentChange }: Props) {
     };
   }, [activeResume, profile, template]);
 
+  function clearLineEditing() {
+    setEditingLine(null);
+    setLineDraft('');
+    setActiveLineContext(null);
+  }
+
   function applyContentChange(updater: (content: ResumeContent) => ResumeContent) {
     if (!activeResume) return;
-    onContentChange(activeResume.id, updater(activeResume.content));
+    onContentChange(activeResume.id, updater);
+  }
+
+  function applyContentChangeWithPendingLineEdit(
+    updater: (content: ResumeContent) => ResumeContent
+  ) {
+    const editingSnapshot = editingLine;
+    const draftSnapshot = lineDraft.trim();
+
+    applyContentChange((content) => {
+      const baseContent = editingSnapshot?.fieldRef && draftSnapshot
+        ? applyFieldRefEdit(content, editingSnapshot.fieldRef, draftSnapshot).content
+        : content;
+      return updater(baseContent);
+    });
+
+    clearLineEditing();
   }
 
   useEffect(() => {
@@ -357,9 +485,7 @@ export function ResumePreview({ onContentChange }: Props) {
       setPages([]);
       setRendering(false);
       setError(null);
-      setEditingLine(null);
-      setLineDraft('');
-      setActiveLineContext(null);
+      clearLineEditing();
       return;
     }
 
@@ -418,9 +544,7 @@ export function ResumePreview({ onContentChange }: Props) {
 
           if (!cancelled) {
             setPages(nextPages);
-            setEditingLine(null);
-            setLineDraft('');
-            setActiveLineContext(null);
+            clearLineEditing();
           }
         } finally {
           await pdfDocument.destroy();
@@ -447,39 +571,29 @@ export function ResumePreview({ onContentChange }: Props) {
   }, [renderPayload]);
 
   function commitLineEdit(nextDraft?: string) {
-    if (!editingLine || !activeResume) {
-      setEditingLine(null);
-      setLineDraft('');
-      setActiveLineContext(null);
+    if (!editingLine) {
+      clearLineEditing();
       return;
     }
 
     const draftValue = nextDraft ?? lineDraft;
     const trimmedDraft = draftValue.trim();
     if (!trimmedDraft) {
-      setEditingLine(null);
-      setLineDraft('');
-      setActiveLineContext(null);
+      clearLineEditing();
       return;
     }
 
-    const { changed, content } = replaceFirstFieldMatch(
-      activeResume.content,
-      editingLine.originalText,
-      trimmedDraft
+    const editingSnapshot = editingLine;
+    applyContentChange((content) =>
+      editingSnapshot.fieldRef
+        ? applyFieldRefEdit(content, editingSnapshot.fieldRef, trimmedDraft).content
+        : content
     );
-
-    if (changed) {
-      onContentChange(activeResume.id, content);
-    }
-
-    setEditingLine(null);
-    setLineDraft('');
-    setActiveLineContext(null);
+    clearLineEditing();
   }
 
   function quickAddBlock(kind: 'experience' | 'education' | 'project' | 'skill') {
-    applyContentChange((content) => {
+    applyContentChangeWithPendingLineEdit((content) => {
       if (kind === 'experience') {
         return {
           ...content,
@@ -509,9 +623,7 @@ export function ResumePreview({ onContentChange }: Props) {
   }
 
   function deleteBlock(kind: 'experience' | 'education' | 'project' | 'skill', index: number) {
-    setActiveLineContext(null);
-
-    applyContentChange((content) => {
+    applyContentChangeWithPendingLineEdit((content) => {
       if (kind === 'experience') {
         return {
           ...content,
@@ -542,9 +654,8 @@ export function ResumePreview({ onContentChange }: Props) {
 
   function moveBlock(kind: 'experience' | 'education' | 'project' | 'skill', index: number, direction: -1 | 1) {
     const toIndex = index + direction;
-    setActiveLineContext(null);
 
-    applyContentChange((content) => {
+    applyContentChangeWithPendingLineEdit((content) => {
       if (kind === 'experience') {
         return {
           ...content,
@@ -574,9 +685,7 @@ export function ResumePreview({ onContentChange }: Props) {
   }
 
   function addExperienceBullet(index: number) {
-    setActiveLineContext(null);
-
-    applyContentChange((content) => ({
+    applyContentChangeWithPendingLineEdit((content) => ({
       ...content,
       workExperience: content.workExperience.map((experience, itemIndex) =>
         itemIndex === index
@@ -587,9 +696,7 @@ export function ResumePreview({ onContentChange }: Props) {
   }
 
   function addEducationDetail(index: number) {
-    setActiveLineContext(null);
-
-    applyContentChange((content) => ({
+    applyContentChangeWithPendingLineEdit((content) => ({
       ...content,
       education: content.education.map((education, itemIndex) =>
         itemIndex === index
@@ -684,16 +791,19 @@ export function ResumePreview({ onContentChange }: Props) {
                         style={{ width: `${line.width}px`, height: `${line.height}px` }}
                         title={line.text}
                         onClick={() => {
+                          const occurrence = getLineOccurrence(pages, pageIndex, line.id, line.text);
+                          const fieldRef = findEditableFieldRef(activeResume.content, line.text, occurrence);
+
                           setEditingLine({
                             pageIndex,
                             lineId: line.id,
-                            originalText: line.text,
+                            fieldRef,
                           });
                           setLineDraft(line.text);
                           setActiveLineContext({
                             pageIndex,
                             lineId: line.id,
-                            blockContext: findBlockContext(activeResume.content, line.text),
+                            blockContext: getBlockContextFromFieldRef(fieldRef),
                           });
                         }}
                       />
@@ -712,9 +822,7 @@ export function ResumePreview({ onContentChange }: Props) {
                         onBlur={(event) => commitLineEdit(event.currentTarget.value)}
                         onKeyDown={(event) => {
                           if (event.key === 'Escape') {
-                            setEditingLine(null);
-                            setLineDraft('');
-                            setActiveLineContext(null);
+                            clearLineEditing();
                             return;
                           }
 
@@ -727,7 +835,10 @@ export function ResumePreview({ onContentChange }: Props) {
                     )}
 
                     {isEditing && selectedBlockContext && (
-                      <div className="pointer-events-auto mt-1 flex flex-wrap gap-1 rounded border border-border-dashed bg-surface/95 p-1 shadow-sm backdrop-blur">
+                      <div
+                        className="pointer-events-auto mt-1 flex flex-wrap gap-1 rounded border border-border-dashed bg-surface/95 p-1 shadow-sm backdrop-blur"
+                        onMouseDown={(event) => event.preventDefault()}
+                      >
                         {(selectedBlockContext.kind === 'experience' || selectedBlockContext.kind === 'education' || selectedBlockContext.kind === 'project' || selectedBlockContext.kind === 'skill') && (
                           <>
                             <Button

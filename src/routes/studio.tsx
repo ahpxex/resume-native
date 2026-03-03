@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAtom } from 'jotai';
 import { Download, Pencil, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router';
@@ -19,18 +19,68 @@ export function Studio() {
   const navigate = useNavigate();
   const [profiles, setProfiles] = useAtom(profilesAtom);
   const [scenarios, setScenarios] = useAtom(scenariosAtom);
-  const [, setResumes] = useAtom(resumesAtom);
+  const [resumes, setResumes] = useAtom(resumesAtom);
   const [activeResume, setActiveResume] = useAtom(activeResumeAtom);
 
-  const [selectedProfileId, setSelectedProfileId] = useState('');
-  const [selectedScenarioId, setSelectedScenarioId] = useState('');
-  const [selectedTemplateId, setSelectedTemplateId] = useState('classic');
+  const [selectedProfileId, setSelectedProfileId] = useState(() => activeResume?.profileId ?? '');
+  const [selectedScenarioId, setSelectedScenarioId] = useState(() => activeResume?.scenarioId ?? '');
+  const [selectedTemplateId, setSelectedTemplateId] = useState(() => activeResume?.templateId ?? 'classic');
 
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) ?? profiles[0] ?? null;
   const effectiveProfileId = selectedProfile?.id ?? '';
   const profileScenarios = scenarios.filter((scenario) => scenario.profileId === effectiveProfileId);
   const selectedScenario = profileScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? profileScenarios[0] ?? null;
   const effectiveScenarioId = selectedScenario?.id ?? '';
+  const resumesForSelection = useMemo(
+    () => resumes.filter(
+      (resume) => resume.profileId === effectiveProfileId && resume.scenarioId === effectiveScenarioId
+    ),
+    [effectiveProfileId, effectiveScenarioId, resumes]
+  );
+  const latestResumeForSelection = useMemo(
+    () => resumesForSelection.reduce(
+      (latest, resume) => (latest && latest.createdAt > resume.createdAt ? latest : resume),
+      null as (typeof resumesForSelection)[number] | null
+    ),
+    [resumesForSelection]
+  );
+
+  useEffect(() => {
+    if (!effectiveProfileId || !effectiveScenarioId) {
+      if (activeResume) setActiveResume(null);
+      return;
+    }
+
+    const matchingActiveResume = activeResume
+      ? resumesForSelection.find((resume) => resume.id === activeResume.id) ?? null
+      : null;
+    const nextResume = matchingActiveResume ?? latestResumeForSelection;
+
+    if (!nextResume) {
+      if (activeResume) setActiveResume(null);
+      return;
+    }
+
+    const hasResumeDrift = !activeResume
+      || activeResume.id !== nextResume.id
+      || activeResume.templateId !== nextResume.templateId
+      || activeResume.content !== nextResume.content;
+    if (hasResumeDrift) {
+      setActiveResume(nextResume);
+    }
+
+    if (selectedTemplateId !== nextResume.templateId) {
+      setSelectedTemplateId(nextResume.templateId);
+    }
+  }, [
+    activeResume,
+    effectiveProfileId,
+    effectiveScenarioId,
+    latestResumeForSelection,
+    resumesForSelection,
+    selectedTemplateId,
+    setActiveResume,
+  ]);
 
   async function exportPdf() {
     if (!activeResume) return;
@@ -94,21 +144,33 @@ export function Studio() {
   function handleTemplateChange(templateId: string) {
     setSelectedTemplateId(templateId);
     if (activeResume) {
-      setActiveResume({ ...activeResume, templateId });
+      setResumes((current) => current.map((resume) =>
+        resume.id === activeResume.id
+          ? { ...resume, templateId }
+          : resume
+      ));
+      setActiveResume((current) => {
+        if (!current || current.id !== activeResume.id) return current;
+        return { ...current, templateId };
+      });
     }
   }
 
-  const handleResumeContentChange = useCallback((resumeId: string, content: ResumeContent) => {
+  const handleResumeContentChange = useCallback((resumeId: string, updater: (content: ResumeContent) => ResumeContent) => {
     setActiveResume((current) => {
       if (!current || current.id !== resumeId) return current;
-      if (current.content === content) return current;
-      return { ...current, content };
+      const nextContent = updater(current.content);
+      if (nextContent === current.content) return current;
+      return { ...current, content: nextContent };
     });
 
     setResumes((current) =>
       current.map((resume) =>
         resume.id === resumeId
-          ? (resume.content === content ? resume : { ...resume, content })
+          ? (() => {
+            const nextContent = updater(resume.content);
+            return nextContent === resume.content ? resume : { ...resume, content: nextContent };
+          })()
           : resume
       )
     );

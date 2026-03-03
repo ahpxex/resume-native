@@ -11,7 +11,7 @@ export function ScenarioEditor() {
   const { id: profileId, scenarioId } = useParams<{ id: string; scenarioId: string }>();
   const navigate = useNavigate();
   const [scenarios, setScenarios] = useAtom(scenariosAtom);
-  const scenario = scenarios.find((s) => s.id === scenarioId);
+  const scenario = scenarios.find((s) => s.id === scenarioId && s.profileId === profileId);
 
   if (!scenario) {
     return (
@@ -26,7 +26,9 @@ export function ScenarioEditor() {
   }
 
   function updateScenario(updated: Scenario) {
-    setScenarios((prev) => prev.map((s) => (s.id === scenarioId ? updated : s)));
+    setScenarios((prev) => prev.map((s) =>
+      (s.id === scenarioId && s.profileId === profileId ? updated : s)
+    ));
   }
 
   return (

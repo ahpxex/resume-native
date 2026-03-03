@@ -29,18 +29,18 @@ interface Props {
 function stepIcon(kind: string) {
   const cls = 'h-2.5 w-2.5 text-text-muted';
   switch (kind) {
-    case 'write_summary':
-      return <FileText className={cls} />;
-    case 'write_work_experience':
+    case 'analyze_profile':
       return <Briefcase className={cls} />;
+    case 'generate_json':
+      return <FileText className={cls} />;
+    case 'finalize_resume':
+      return <Check className={cls} />;
     case 'write_education':
       return <GraduationCap className={cls} />;
     case 'write_project':
       return <FolderOpen className={cls} />;
     case 'set_skills':
       return <Wrench className={cls} />;
-    case 'finalize_resume':
-      return <Check className={cls} />;
     default:
       return <Sparkles className={cls} />;
   }
@@ -57,9 +57,18 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
 
   const profile = profiles.find((p) => p.id === profileId);
   const scenario = scenarios.find((s) => s.id === scenarioId);
+  const hasApiKey = Boolean(settings.apiKey.trim());
+  const hasBaseUrl = Boolean(settings.baseUrl.trim());
+  const hasModel = Boolean(settings.model.trim());
+  const hasRequiredSettings = hasApiKey && hasBaseUrl && hasModel;
 
   async function generate() {
-    if (!profile || !scenario || !settings.apiKey) return;
+    if (!profile || !scenario) return;
+    if (!hasRequiredSettings) {
+      setError('Configure API key, base URL, and model in Settings first.');
+      return;
+    }
+
     setGenerating(true);
     setError(null);
     setSteps([]);
@@ -92,7 +101,7 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
       setGenerating(false);
     }
   }
-  const canGenerate = profile && scenario && settings.apiKey && !generating;
+  const canGenerate = Boolean(profile && scenario && hasRequiredSettings && !generating);
 
   return (
     <div className="space-y-3">
@@ -110,8 +119,8 @@ export function GenerationPanel({ profileId, scenarioId, templateId }: Props) {
         )}
       </Button>
 
-      {!settings.apiKey && (
-        <p className="font-mono text-[10px] text-warn">Configure API key in Settings first.</p>
+      {!hasRequiredSettings && (
+        <p className="font-mono text-[10px] text-warn">Configure API key, base URL, and model in Settings first.</p>
       )}
 
       {error && <p className="font-mono text-[10px] text-danger">{error}</p>}

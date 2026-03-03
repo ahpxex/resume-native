@@ -17,15 +17,18 @@ interface GenerateResumeOptions {
   onStep?: (step: AgentStep) => void;
 }
 
+const nullableOptionalString = z.string().nullish().transform((value) => value ?? undefined);
+const nullableOptionalStringArray = z.array(z.string()).nullish().transform((value) => value ?? undefined);
+
 const resumeSchema = z.object({
   summary: z.string(),
   workExperience: z.array(
     z.object({
       company: z.string(),
       position: z.string(),
-      location: z.string().optional(),
+      location: nullableOptionalString,
       startDate: z.string(),
-      endDate: z.string().optional(),
+      endDate: nullableOptionalString,
       bullets: z.array(z.string()),
     }),
   ),
@@ -35,8 +38,8 @@ const resumeSchema = z.object({
       degree: z.string(),
       field: z.string(),
       startDate: z.string(),
-      endDate: z.string().optional(),
-      details: z.array(z.string()).optional(),
+      endDate: nullableOptionalString,
+      details: nullableOptionalStringArray,
     }),
   ),
   projects: z.array(
@@ -44,7 +47,7 @@ const resumeSchema = z.object({
       name: z.string(),
       description: z.string(),
       technologies: z.array(z.string()),
-      url: z.string().optional(),
+      url: nullableOptionalString,
     }),
   ),
   skills: z.array(z.string()),
