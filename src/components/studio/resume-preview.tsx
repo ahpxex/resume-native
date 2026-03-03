@@ -45,6 +45,18 @@ interface EditingLine {
   originalText: string;
 }
 
+type BlockContext =
+  | { kind: 'experience'; index: number }
+  | { kind: 'education'; index: number }
+  | { kind: 'project'; index: number }
+  | { kind: 'skill'; index: number };
+
+interface ActiveLineContext {
+  pageIndex: number;
+  lineId: string;
+  blockContext: BlockContext | null;
+}
+
 interface Props {
   onContentChange: (resumeId: string, content: ResumeContent) => void;
 }
@@ -62,6 +74,21 @@ function isPdfTextItemLike(item: unknown): item is PdfTextItemLike {
 
 function normalizeText(value: string) {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeMatchText(value: string) {
+  return normalizeText(value).replace(/^[•*\\-]\\s*/, '').toLowerCase();
+}
+
+function textMatchesValue(value: string, target: string) {
+  const left = normalizeMatchText(value);
+  const right = normalizeMatchText(target);
+
+  if (!left || !right) return false;
+  if (left === right) return true;
+  if (right.length >= 4 && left.includes(right)) return true;
+  if (left.length >= 4 && right.includes(left)) return true;
+  return false;
 }
 
 function createQuickAddExperience() {
@@ -111,6 +138,53 @@ function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number) {
   if (item === undefined) return items;
   next.splice(toIndex, 0, item);
   return next;
+}
+
+function findBlockContext(content: ResumeContent, targetText: string): BlockContext | null {
+  for (const [index, experience] of content.workExperience.entries()) {
+    const fields = [
+      experience.company,
+      experience.position,
+      experience.location || '',
+      experience.startDate,
+      experience.endDate || '',
+      ...experience.bullets,
+    ];
+
+    if (fields.some((value) => textMatchesValue(value, targetText))) {
+      return { kind: 'experience', index };
+    }
+  }
+
+  for (const [index, education] of content.education.entries()) {
+    const fields = [
+      education.institution,
+      education.degree,
+      education.field,
+      education.startDate,
+      education.endDate || '',
+      ...(education.details || []),
+    ];
+
+    if (fields.some((value) => textMatchesValue(value, targetText))) {
+      return { kind: 'education', index };
+    }
+  }
+
+  for (const [index, project] of content.projects.entries()) {
+    const fields = [project.name, project.description, project.url || '', ...project.technologies];
+    if (fields.some((value) => textMatchesValue(value, targetText))) {
+      return { kind: 'project', index };
+    }
+  }
+
+  for (const [index, skill] of content.skills.entries()) {
+    if (textMatchesValue(skill, targetText)) {
+      return { kind: 'skill', index };
+    }
+  }
+
+  return null;
 }
 
 function replaceFirstFieldMatch(content: ResumeContent, targetText: string, nextText: string) {
@@ -253,6 +327,7 @@ export function ResumePreview({ onContentChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [editingLine, setEditingLine] = useState<EditingLine | null>(null);
   const [lineDraft, setLineDraft] = useState('');
+  const [activeLineContext, setActiveLineContext] = useState<ActiveLineContext | null>(null);
 
   const profile = activeResume
     ? profiles.find((candidate) => candidate.id === activeResume.profileId)
@@ -284,6 +359,7 @@ export function ResumePreview({ onContentChange }: Props) {
       setError(null);
       setEditingLine(null);
       setLineDraft('');
+      setActiveLineContext(null);
       return;
     }
 
@@ -344,6 +420,7 @@ export function ResumePreview({ onContentChange }: Props) {
             setPages(nextPages);
             setEditingLine(null);
             setLineDraft('');
+            setActiveLineContext(null);
           }
         } finally {
           await pdfDocument.destroy();
@@ -373,6 +450,7 @@ export function ResumePreview({ onContentChange }: Props) {
     if (!editingLine || !activeResume) {
       setEditingLine(null);
       setLineDraft('');
+      setActiveLineContext(null);
       return;
     }
 
@@ -381,6 +459,7 @@ export function ResumePreview({ onContentChange }: Props) {
     if (!trimmedDraft) {
       setEditingLine(null);
       setLineDraft('');
+      setActiveLineContext(null);
       return;
     }
 
@@ -396,6 +475,7 @@ export function ResumePreview({ onContentChange }: Props) {
 
     setEditingLine(null);
     setLineDraft('');
+    setActiveLineContext(null);
   }
 
   function quickAddBlock(kind: 'experience' | 'education' | 'project' | 'skill') {
@@ -429,6 +509,8 @@ export function ResumePreview({ onContentChange }: Props) {
   }
 
   function deleteBlock(kind: 'experience' | 'education' | 'project' | 'skill', index: number) {
+    setActiveLineContext(null);
+
     applyContentChange((content) => {
       if (kind === 'experience') {
         return {
@@ -460,6 +542,7 @@ export function ResumePreview({ onContentChange }: Props) {
 
   function moveBlock(kind: 'experience' | 'education' | 'project' | 'skill', index: number, direction: -1 | 1) {
     const toIndex = index + direction;
+    setActiveLineContext(null);
 
     applyContentChange((content) => {
       if (kind === 'experience') {
@@ -491,6 +574,8 @@ export function ResumePreview({ onContentChange }: Props) {
   }
 
   function addExperienceBullet(index: number) {
+    setActiveLineContext(null);
+
     applyContentChange((content) => ({
       ...content,
       workExperience: content.workExperience.map((experience, itemIndex) =>
@@ -502,6 +587,8 @@ export function ResumePreview({ onContentChange }: Props) {
   }
 
   function addEducationDetail(index: number) {
+    setActiveLineContext(null);
+
     applyContentChange((content) => ({
       ...content,
       education: content.education.map((education, itemIndex) =>
@@ -532,176 +619,6 @@ export function ResumePreview({ onContentChange }: Props) {
       <p className="mb-3 font-mono text-[10px] text-text-dim">
         Click a text line on the canvas to edit directly.
       </p>
-      <div className="order-3 mt-4">
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('experience')}>
-            <Plus className="h-3 w-3" />
-            Experience
-          </Button>
-          <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('education')}>
-            <Plus className="h-3 w-3" />
-            Education
-          </Button>
-          <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('project')}>
-            <Plus className="h-3 w-3" />
-            Project
-          </Button>
-          <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('skill')}>
-            <Plus className="h-3 w-3" />
-            Skill
-          </Button>
-        </div>
-        <div className="space-y-3 rounded border border-dashed border-border-dashed p-2">
-          <p className="font-mono text-[10px] text-text-dim">
-            Block controls: delete, reorder, and quick bullet/detail add.
-          </p>
-
-        <div className="space-y-2">
-          <p className="annotation">experience blocks</p>
-          {activeResume.content.workExperience.length === 0 ? (
-            <p className="font-mono text-[10px] text-text-dim">No experience blocks.</p>
-          ) : (
-            activeResume.content.workExperience.map((experience, index) => (
-              <div
-                key={`experience-${index}`}
-                className="flex flex-wrap items-center gap-1 rounded border border-border-dashed bg-surface-raised/20 p-1.5"
-              >
-                <span className="max-w-[24rem] truncate pr-2 font-mono text-[10px] text-text-muted">
-                  {index + 1}. {[experience.position, experience.company].filter(Boolean).join(' @ ') || 'Untitled'}
-                </span>
-                <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveBlock('experience', index, -1)}>
-                  <ArrowUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  disabled={index === activeResume.content.workExperience.length - 1}
-                  onClick={() => moveBlock('experience', index, 1)}
-                >
-                  <ArrowDown className="h-3 w-3" />
-                </Button>
-                <Button variant="secondary" size="sm" type="button" onClick={() => addExperienceBullet(index)}>
-                  <Plus className="h-3 w-3" />
-                  Bullet
-                </Button>
-                <Button variant="danger" size="sm" type="button" onClick={() => deleteBlock('experience', index)}>
-                  <Trash2 className="h-3 w-3" />
-                  Delete
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <p className="annotation">education blocks</p>
-          {activeResume.content.education.length === 0 ? (
-            <p className="font-mono text-[10px] text-text-dim">No education blocks.</p>
-          ) : (
-            activeResume.content.education.map((education, index) => (
-              <div
-                key={`education-${index}`}
-                className="flex flex-wrap items-center gap-1 rounded border border-border-dashed bg-surface-raised/20 p-1.5"
-              >
-                <span className="max-w-[24rem] truncate pr-2 font-mono text-[10px] text-text-muted">
-                  {index + 1}. {[education.degree, education.institution].filter(Boolean).join(' @ ') || 'Untitled'}
-                </span>
-                <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveBlock('education', index, -1)}>
-                  <ArrowUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  disabled={index === activeResume.content.education.length - 1}
-                  onClick={() => moveBlock('education', index, 1)}
-                >
-                  <ArrowDown className="h-3 w-3" />
-                </Button>
-                <Button variant="secondary" size="sm" type="button" onClick={() => addEducationDetail(index)}>
-                  <Plus className="h-3 w-3" />
-                  Detail
-                </Button>
-                <Button variant="danger" size="sm" type="button" onClick={() => deleteBlock('education', index)}>
-                  <Trash2 className="h-3 w-3" />
-                  Delete
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <p className="annotation">project blocks</p>
-          {activeResume.content.projects.length === 0 ? (
-            <p className="font-mono text-[10px] text-text-dim">No project blocks.</p>
-          ) : (
-            activeResume.content.projects.map((project, index) => (
-              <div
-                key={`project-${index}`}
-                className="flex flex-wrap items-center gap-1 rounded border border-border-dashed bg-surface-raised/20 p-1.5"
-              >
-                <span className="max-w-[24rem] truncate pr-2 font-mono text-[10px] text-text-muted">
-                  {index + 1}. {project.name || 'Untitled'}
-                </span>
-                <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveBlock('project', index, -1)}>
-                  <ArrowUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  disabled={index === activeResume.content.projects.length - 1}
-                  onClick={() => moveBlock('project', index, 1)}
-                >
-                  <ArrowDown className="h-3 w-3" />
-                </Button>
-                <Button variant="danger" size="sm" type="button" onClick={() => deleteBlock('project', index)}>
-                  <Trash2 className="h-3 w-3" />
-                  Delete
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <p className="annotation">skills</p>
-          {activeResume.content.skills.length === 0 ? (
-            <p className="font-mono text-[10px] text-text-dim">No skills yet.</p>
-          ) : (
-            activeResume.content.skills.map((skill, index) => (
-              <div
-                key={`skill-${index}`}
-                className="flex flex-wrap items-center gap-1 rounded border border-border-dashed bg-surface-raised/20 p-1.5"
-              >
-                <span className="max-w-[24rem] truncate pr-2 font-mono text-[10px] text-text-muted">
-                  {index + 1}. {skill || 'Untitled'}
-                </span>
-                <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveBlock('skill', index, -1)}>
-                  <ArrowUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  disabled={index === activeResume.content.skills.length - 1}
-                  onClick={() => moveBlock('skill', index, 1)}
-                >
-                  <ArrowDown className="h-3 w-3" />
-                </Button>
-                <Button variant="danger" size="sm" type="button" onClick={() => deleteBlock('skill', index)}>
-                  <Trash2 className="h-3 w-3" />
-                  Delete
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
-        </div>
-      </div>
-
       {rendering && (
         <p className="mb-3 font-mono text-[10px] text-text-dim">
           {pages.length > 0 ? 'Updating preview...' : 'Rendering canvas preview...'}
@@ -726,11 +643,37 @@ export function ResumePreview({ onContentChange }: Props) {
               style={{ width: `${page.width}px`, height: `${page.height}px` }}
             />
 
+            {pageIndex === 0 && (
+              <div className="pointer-events-auto absolute right-2 top-2 z-20 flex flex-wrap gap-1 rounded border border-border-dashed bg-surface/95 p-1 backdrop-blur">
+                <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('experience')}>
+                  <Plus className="h-3 w-3" />
+                  Experience
+                </Button>
+                <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('education')}>
+                  <Plus className="h-3 w-3" />
+                  Education
+                </Button>
+                <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('project')}>
+                  <Plus className="h-3 w-3" />
+                  Project
+                </Button>
+                <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('skill')}>
+                  <Plus className="h-3 w-3" />
+                  Skill
+                </Button>
+              </div>
+            )}
+
             <div className="pointer-events-none absolute inset-0">
               {page.lines.map((line) => {
                 const isEditing = editingLine
                   && editingLine.pageIndex === pageIndex
                   && editingLine.lineId === line.id;
+                const selectedBlockContext = activeLineContext
+                  && activeLineContext.pageIndex === pageIndex
+                  && activeLineContext.lineId === line.id
+                  ? activeLineContext.blockContext
+                  : null;
 
                 return (
                   <div key={line.id} className="absolute" style={{ left: `${line.x}px`, top: `${line.y}px` }}>
@@ -747,6 +690,11 @@ export function ResumePreview({ onContentChange }: Props) {
                             originalText: line.text,
                           });
                           setLineDraft(line.text);
+                          setActiveLineContext({
+                            pageIndex,
+                            lineId: line.id,
+                            blockContext: findBlockContext(activeResume.content, line.text),
+                          });
                         }}
                       />
                     )}
@@ -766,6 +714,7 @@ export function ResumePreview({ onContentChange }: Props) {
                           if (event.key === 'Escape') {
                             setEditingLine(null);
                             setLineDraft('');
+                            setActiveLineContext(null);
                             return;
                           }
 
@@ -775,6 +724,75 @@ export function ResumePreview({ onContentChange }: Props) {
                           }
                         }}
                       />
+                    )}
+
+                    {isEditing && selectedBlockContext && (
+                      <div className="pointer-events-auto mt-1 flex flex-wrap gap-1 rounded border border-border-dashed bg-surface/95 p-1 shadow-sm backdrop-blur">
+                        {(selectedBlockContext.kind === 'experience' || selectedBlockContext.kind === 'education' || selectedBlockContext.kind === 'project' || selectedBlockContext.kind === 'skill') && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              type="button"
+                              disabled={selectedBlockContext.index === 0}
+                              onClick={() => moveBlock(selectedBlockContext.kind, selectedBlockContext.index, -1)}
+                            >
+                              <ArrowUp className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              type="button"
+                              disabled={selectedBlockContext.index === (
+                                selectedBlockContext.kind === 'experience'
+                                  ? activeResume.content.workExperience.length - 1
+                                  : selectedBlockContext.kind === 'education'
+                                    ? activeResume.content.education.length - 1
+                                    : selectedBlockContext.kind === 'project'
+                                      ? activeResume.content.projects.length - 1
+                                      : activeResume.content.skills.length - 1
+                              )}
+                              onClick={() => moveBlock(selectedBlockContext.kind, selectedBlockContext.index, 1)}
+                            >
+                              <ArrowDown className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+
+                        {selectedBlockContext.kind === 'experience' && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            type="button"
+                            onClick={() => addExperienceBullet(selectedBlockContext.index)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Bullet
+                          </Button>
+                        )}
+
+                        {selectedBlockContext.kind === 'education' && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            type="button"
+                            onClick={() => addEducationDetail(selectedBlockContext.index)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Detail
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          type="button"
+                          onClick={() => deleteBlock(selectedBlockContext.kind, selectedBlockContext.index)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </Button>
+                      </div>
                     )}
                   </div>
                 );
