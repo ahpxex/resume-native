@@ -6,21 +6,205 @@ import { activeResumeAtom } from '../../store/resumes';
 import { profilesAtom } from '../../store/profiles';
 import { templateRegistry } from '../../templates/registry';
 import { buildResumePdfBlob } from '../../lib/resume-pdf';
+import type { ResumeContent } from '../../types';
 
 const PREVIEW_PAGE_WIDTH = 980;
-const PREVIEW_RENDER_DEBOUNCE_MS = 320;
+const PREVIEW_RENDER_DEBOUNCE_MS = 280;
+const MIN_EDITABLE_TEXT_LENGTH = 2;
 
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
-export function ResumePreview() {
+interface PreviewPage {
+  imageSrc: string;
+  width: number;
+  height: number;
+  lines: TextLine[];
+}
+
+interface TextLine {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface PdfTextItemLike {
+  str: string;
+  transform: number[];
+  width: number;
+  height: number;
+}
+
+interface EditingLine {
+  pageIndex: number;
+  lineId: string;
+  originalText: string;
+}
+
+interface Props {
+  onContentChange: (resumeId: string, content: ResumeContent) => void;
+}
+
+function isPdfTextItemLike(item: unknown): item is PdfTextItemLike {
+  if (!item || typeof item !== 'object') return false;
+  const candidate = item as Partial<PdfTextItemLike>;
+  return (
+    typeof candidate.str === 'string'
+    && Array.isArray(candidate.transform)
+    && typeof candidate.width === 'number'
+    && typeof candidate.height === 'number'
+  );
+}
+
+function normalizeText(value: string) {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function replaceFirstFieldMatch(content: ResumeContent, targetText: string, nextText: string) {
+  const target = normalizeText(targetText);
+  if (!target || target.length < MIN_EDITABLE_TEXT_LENGTH) {
+    return { changed: false, content };
+  }
+
+  let changed = false;
+
+  const replaceValue = (value: string) => {
+    if (changed) return value;
+
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+
+    if (trimmed === target) {
+      changed = true;
+      return nextText;
+    }
+
+    if (target.length >= 4 && value.includes(target)) {
+      changed = true;
+      return value.replace(target, nextText);
+    }
+
+    const normalizedValue = normalizeText(value);
+    if (target.length >= 4 && normalizedValue.includes(target)) {
+      changed = true;
+      return normalizedValue.replace(target, nextText);
+    }
+
+    return value;
+  };
+
+  const updated: ResumeContent = {
+    summary: replaceValue(content.summary),
+    workExperience: content.workExperience.map((job) => ({
+      ...job,
+      company: replaceValue(job.company),
+      position: replaceValue(job.position),
+      location: replaceValue(job.location || ''),
+      startDate: replaceValue(job.startDate),
+      endDate: replaceValue(job.endDate || ''),
+      bullets: job.bullets.map((bullet) => replaceValue(bullet)),
+    })),
+    education: content.education.map((education) => ({
+      ...education,
+      institution: replaceValue(education.institution),
+      degree: replaceValue(education.degree),
+      field: replaceValue(education.field),
+      startDate: replaceValue(education.startDate),
+      endDate: replaceValue(education.endDate || ''),
+      details: education.details?.map((detail) => replaceValue(detail)),
+    })),
+    projects: content.projects.map((project) => ({
+      ...project,
+      name: replaceValue(project.name),
+      description: replaceValue(project.description),
+      url: replaceValue(project.url || ''),
+      technologies: project.technologies.map((tech) => replaceValue(tech)),
+    })),
+    skills: content.skills.map((skill) => replaceValue(skill)),
+  };
+
+  return { changed, content: updated };
+}
+
+function buildTextLines(
+  pageNumber: number,
+  items: unknown[],
+  viewport: { scale: number; convertToViewportPoint: (x: number, y: number) => number[] }
+) {
+  const buckets = new Map<number, Array<{ x: number; width: number; text: string; height: number }>>();
+
+  for (const item of items) {
+    if (!isPdfTextItemLike(item)) continue;
+
+    const text = item.str.trim();
+    if (!text) continue;
+
+    const [xRaw, yRaw] = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
+    const x = Number(xRaw) || 0;
+    const y = Number(yRaw) || 0;
+    const itemHeight = Math.max(8, Math.abs(item.transform[3] * viewport.scale));
+    const top = y - itemHeight;
+    const width = Math.max(itemHeight * 0.6, item.width * viewport.scale);
+
+    const rowKey = Math.round(top / 3);
+    const row = buckets.get(rowKey) ?? [];
+    row.push({ x, width, text, height: itemHeight * 1.25 });
+    buckets.set(rowKey, row);
+  }
+
+  const rows = Array.from(buckets.entries()).sort(([a], [b]) => a - b);
+
+  return rows
+    .map(([rowKey, rowItems], rowIndex) => {
+      const sorted = [...rowItems].sort((a, b) => a.x - b.x);
+
+      let mergedText = '';
+      let minX = Number.POSITIVE_INFINITY;
+      let maxX = Number.NEGATIVE_INFINITY;
+      let maxHeight = 16;
+      let previousEnd = 0;
+
+      for (const item of sorted) {
+        if (mergedText && item.x - previousEnd > 3) {
+          mergedText += ' ';
+        }
+
+        mergedText += item.text;
+        minX = Math.min(minX, item.x);
+        maxX = Math.max(maxX, item.x + item.width);
+        maxHeight = Math.max(maxHeight, item.height);
+        previousEnd = item.x + item.width;
+      }
+
+      const normalized = normalizeText(mergedText);
+      if (normalized.length < MIN_EDITABLE_TEXT_LENGTH) return null;
+
+      return {
+        id: `${pageNumber}-${rowIndex}`,
+        text: normalized,
+        x: minX,
+        y: rowKey * 3,
+        width: Math.max(6, maxX - minX),
+        height: maxHeight,
+      } satisfies TextLine;
+    })
+    .filter((line): line is TextLine => Boolean(line));
+}
+
+export function ResumePreview({ onContentChange }: Props) {
   const activeResume = useAtomValue(activeResumeAtom);
   const profiles = useAtomValue(profilesAtom);
-  const [pageImages, setPageImages] = useState<string[]>([]);
+
+  const [pages, setPages] = useState<PreviewPage[]>([]);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingLine, setEditingLine] = useState<EditingLine | null>(null);
+  const [lineDraft, setLineDraft] = useState('');
 
   const profile = activeResume
-    ? profiles.find((p) => p.id === activeResume.profileId)
+    ? profiles.find((candidate) => candidate.id === activeResume.profileId)
     : null;
   const template = activeResume
     ? templateRegistry[activeResume.templateId]
@@ -28,7 +212,9 @@ export function ResumePreview() {
 
   const renderPayload = useMemo(() => {
     if (!activeResume || !profile || !template) return null;
+
     return {
+      resumeId: activeResume.id,
       content: activeResume.content,
       personalInfo: profile.personalInfo,
       templateComponent: template.component,
@@ -37,13 +223,15 @@ export function ResumePreview() {
 
   useEffect(() => {
     if (!renderPayload) {
-      setPageImages([]);
+      setPages([]);
       setRendering(false);
       setError(null);
+      setEditingLine(null);
+      setLineDraft('');
       return;
     }
-    const currentPayload = renderPayload;
 
+    const currentPayload = renderPayload;
     let cancelled = false;
 
     async function renderCanvasPreview() {
@@ -62,7 +250,7 @@ export function ResumePreview() {
         const pdfDocument = await loadingTask.promise;
 
         try {
-          const nextImages: string[] = [];
+          const nextPages: PreviewPage[] = [];
 
           for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
             if (cancelled) break;
@@ -84,18 +272,29 @@ export function ResumePreview() {
 
             context.setTransform(dpiScale, 0, 0, dpiScale, 0, 0);
             await page.render({ canvas, canvasContext: context, viewport }).promise;
-            nextImages.push(canvas.toDataURL('image/png'));
+
+            const textContent = await page.getTextContent();
+            const lines = buildTextLines(pageNumber, textContent.items, viewport);
+
+            nextPages.push({
+              imageSrc: canvas.toDataURL('image/png'),
+              width: viewport.width,
+              height: viewport.height,
+              lines,
+            });
           }
 
-          if (!cancelled && nextImages.length > 0) {
-            setPageImages(nextImages);
+          if (!cancelled) {
+            setPages(nextPages);
+            setEditingLine(null);
+            setLineDraft('');
           }
         } finally {
           await pdfDocument.destroy();
         }
-      } catch (e) {
+      } catch (renderError) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to render preview');
+          setError(renderError instanceof Error ? renderError.message : 'Failed to render preview');
         }
       } finally {
         if (!cancelled) {
@@ -114,6 +313,35 @@ export function ResumePreview() {
     };
   }, [renderPayload]);
 
+  function commitLineEdit(nextDraft?: string) {
+    if (!editingLine || !activeResume) {
+      setEditingLine(null);
+      setLineDraft('');
+      return;
+    }
+
+    const draftValue = nextDraft ?? lineDraft;
+    const trimmedDraft = draftValue.trim();
+    if (!trimmedDraft) {
+      setEditingLine(null);
+      setLineDraft('');
+      return;
+    }
+
+    const { changed, content } = replaceFirstFieldMatch(
+      activeResume.content,
+      editingLine.originalText,
+      trimmedDraft
+    );
+
+    if (changed) {
+      onContentChange(activeResume.id, content);
+    }
+
+    setEditingLine(null);
+    setLineDraft('');
+  }
+
   if (!activeResume) {
     return (
       <div className="flex h-full items-center justify-center rounded border border-dashed border-border-dashed bg-surface">
@@ -130,27 +358,89 @@ export function ResumePreview() {
   if (!profile || !template) return null;
 
   return (
-    <div className="h-full overflow-y-auto rounded border border-border bg-surface p-4">
+    <div className="h-full overflow-auto rounded border border-border bg-surface p-4">
+      <p className="mb-3 font-mono text-[10px] text-text-dim">
+        Click a text line on the canvas to edit directly.
+      </p>
+
       {rendering && (
         <p className="mb-3 font-mono text-[10px] text-text-dim">
-          {pageImages.length > 0 ? 'Updating preview...' : 'Rendering canvas preview...'}
+          {pages.length > 0 ? 'Updating preview...' : 'Rendering canvas preview...'}
         </p>
       )}
-      {error && (
-        <p className="mb-3 font-mono text-[10px] text-danger">{error}</p>
-      )}
-      {!rendering && !error && pageImages.length === 0 && (
+      {error && <p className="mb-3 font-mono text-[10px] text-danger">{error}</p>}
+      {!rendering && !error && pages.length === 0 && (
         <p className="mb-3 font-mono text-[10px] text-text-dim">No preview pages were generated.</p>
       )}
 
       <div className="space-y-4">
-        {pageImages.map((src, index) => (
-          <div key={`${index}-${src.length}`} className="mx-auto w-fit border border-border-dashed bg-white shadow-sm">
+        {pages.map((page, pageIndex) => (
+          <div
+            key={`${pageIndex}-${page.imageSrc.length}`}
+            className="relative mx-auto w-fit border border-border-dashed bg-white shadow-sm"
+            style={{ width: `${page.width}px`, minWidth: `${page.width}px` }}
+          >
             <img
-              src={src}
-              alt={`Resume page ${index + 1}`}
-              className="block h-auto max-w-full"
+              src={page.imageSrc}
+              alt={`Resume page ${pageIndex + 1}`}
+              className="block h-auto"
+              style={{ width: `${page.width}px`, height: `${page.height}px` }}
             />
+
+            <div className="pointer-events-none absolute inset-0">
+              {page.lines.map((line) => {
+                const isEditing = editingLine
+                  && editingLine.pageIndex === pageIndex
+                  && editingLine.lineId === line.id;
+
+                return (
+                  <div key={line.id} className="absolute" style={{ left: `${line.x}px`, top: `${line.y}px` }}>
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        className="pointer-events-auto block rounded-sm border border-transparent bg-transparent transition-colors hover:border-accent/50 hover:bg-accent/10"
+                        style={{ width: `${line.width}px`, height: `${line.height}px` }}
+                        title={line.text}
+                        onClick={() => {
+                          setEditingLine({
+                            pageIndex,
+                            lineId: line.id,
+                            originalText: line.text,
+                          });
+                          setLineDraft(line.text);
+                        }}
+                      />
+                    )}
+
+                    {isEditing && (
+                      <textarea
+                        autoFocus
+                        value={lineDraft}
+                        className="pointer-events-auto rounded border border-accent/60 bg-surface px-1 py-0.5 font-mono text-[11px] text-text shadow-sm outline-none"
+                        style={{
+                          width: `${Math.max(line.width, 220)}px`,
+                          minHeight: `${Math.max(line.height, 24)}px`,
+                        }}
+                        onChange={(event) => setLineDraft(event.target.value)}
+                        onBlur={(event) => commitLineEdit(event.currentTarget.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            setEditingLine(null);
+                            setLineDraft('');
+                            return;
+                          }
+
+                          if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault();
+                            commitLineEdit(event.currentTarget.value);
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>

@@ -10,7 +10,6 @@ import { Select } from '../components/ui/select';
 import { TemplatePicker } from '../components/studio/template-picker';
 import { GenerationPanel } from '../components/studio/generation-panel';
 import { ResumePreview } from '../components/studio/resume-preview';
-import { ResumeEditorPanel } from '../components/studio/resume-editor-panel';
 import { templateRegistry } from '../templates/registry';
 import { buildResumePdfBlob } from '../lib/resume-pdf';
 import { generateId } from '../lib/utils';
@@ -219,19 +218,10 @@ export function Studio() {
         )}
       </div>
 
-      {/* Right panel -- preview + editor */}
+      {/* Right panel -- preview */}
       <div className="flex-1 min-w-0 bg-canvas p-4">
-        <div className="flex h-full gap-4">
-          <div className="min-w-0 flex-1">
-            <ResumePreview />
-          </div>
-          <div className="w-[22rem] max-w-[35vw] shrink-0">
-            <ResumeEditorPanel
-              key={activeResume?.id ?? 'no-resume'}
-              resume={activeResume}
-              onContentChange={handleResumeContentChange}
-            />
-          </div>
+        <div className="h-full min-w-0">
+          <ResumePreview onContentChange={handleResumeContentChange} />
         </div>
       </div>
     </div>
