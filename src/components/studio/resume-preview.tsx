@@ -528,32 +528,33 @@ export function ResumePreview({ onContentChange }: Props) {
   if (!profile || !template) return null;
 
   return (
-    <div className="h-full overflow-auto rounded border border-border bg-surface p-4">
+    <div className="h-full overflow-auto rounded border border-border bg-surface p-4 flex flex-col">
       <p className="mb-3 font-mono text-[10px] text-text-dim">
         Click a text line on the canvas to edit directly.
       </p>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('experience')}>
-          <Plus className="h-3 w-3" />
-          Experience
-        </Button>
-        <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('education')}>
-          <Plus className="h-3 w-3" />
-          Education
-        </Button>
-        <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('project')}>
-          <Plus className="h-3 w-3" />
-          Project
-        </Button>
-        <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('skill')}>
-          <Plus className="h-3 w-3" />
-          Skill
-        </Button>
-      </div>
-      <div className="mb-4 space-y-3 rounded border border-dashed border-border-dashed p-2">
-        <p className="font-mono text-[10px] text-text-dim">
-          Block controls: delete, reorder, and quick bullet/detail add.
-        </p>
+      <div className="order-3 mt-4">
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('experience')}>
+            <Plus className="h-3 w-3" />
+            Experience
+          </Button>
+          <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('education')}>
+            <Plus className="h-3 w-3" />
+            Education
+          </Button>
+          <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('project')}>
+            <Plus className="h-3 w-3" />
+            Project
+          </Button>
+          <Button size="sm" variant="secondary" type="button" onClick={() => quickAddBlock('skill')}>
+            <Plus className="h-3 w-3" />
+            Skill
+          </Button>
+        </div>
+        <div className="space-y-3 rounded border border-dashed border-border-dashed p-2">
+          <p className="font-mono text-[10px] text-text-dim">
+            Block controls: delete, reorder, and quick bullet/detail add.
+          </p>
 
         <div className="space-y-2">
           <p className="annotation">experience blocks</p>
@@ -697,6 +698,7 @@ export function ResumePreview({ onContentChange }: Props) {
               </div>
             ))
           )}
+        </div>
         </div>
       </div>
 
