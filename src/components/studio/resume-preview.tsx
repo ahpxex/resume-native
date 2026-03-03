@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
-import { Plus } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { activeResumeAtom } from '../../store/resumes';
@@ -93,6 +93,24 @@ function createQuickAddProject() {
     technologies: ['React'],
     url: '',
   };
+}
+
+function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number) {
+  if (
+    fromIndex < 0
+    || fromIndex >= items.length
+    || toIndex < 0
+    || toIndex >= items.length
+    || fromIndex === toIndex
+  ) {
+    return items;
+  }
+
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  if (item === undefined) return items;
+  next.splice(toIndex, 0, item);
+  return next;
 }
 
 function replaceFirstFieldMatch(content: ResumeContent, targetText: string, nextText: string) {
@@ -254,6 +272,11 @@ export function ResumePreview({ onContentChange }: Props) {
     };
   }, [activeResume, profile, template]);
 
+  function applyContentChange(updater: (content: ResumeContent) => ResumeContent) {
+    if (!activeResume) return;
+    onContentChange(activeResume.id, updater(activeResume.content));
+  }
+
   useEffect(() => {
     if (!renderPayload) {
       setPages([]);
@@ -376,37 +399,117 @@ export function ResumePreview({ onContentChange }: Props) {
   }
 
   function quickAddBlock(kind: 'experience' | 'education' | 'project' | 'skill') {
-    if (!activeResume) return;
-
-    const nextContent: ResumeContent = (() => {
+    applyContentChange((content) => {
       if (kind === 'experience') {
         return {
-          ...activeResume.content,
-          workExperience: [...activeResume.content.workExperience, createQuickAddExperience()],
+          ...content,
+          workExperience: [...content.workExperience, createQuickAddExperience()],
         };
       }
 
       if (kind === 'education') {
         return {
-          ...activeResume.content,
-          education: [...activeResume.content.education, createQuickAddEducation()],
+          ...content,
+          education: [...content.education, createQuickAddEducation()],
         };
       }
 
       if (kind === 'project') {
         return {
-          ...activeResume.content,
-          projects: [...activeResume.content.projects, createQuickAddProject()],
+          ...content,
+          projects: [...content.projects, createQuickAddProject()],
         };
       }
 
       return {
-        ...activeResume.content,
-        skills: [...activeResume.content.skills, 'New Skill'],
+        ...content,
+        skills: [...content.skills, 'New Skill'],
       };
-    })();
+    });
+  }
 
-    onContentChange(activeResume.id, nextContent);
+  function deleteBlock(kind: 'experience' | 'education' | 'project' | 'skill', index: number) {
+    applyContentChange((content) => {
+      if (kind === 'experience') {
+        return {
+          ...content,
+          workExperience: content.workExperience.filter((_, itemIndex) => itemIndex !== index),
+        };
+      }
+
+      if (kind === 'education') {
+        return {
+          ...content,
+          education: content.education.filter((_, itemIndex) => itemIndex !== index),
+        };
+      }
+
+      if (kind === 'project') {
+        return {
+          ...content,
+          projects: content.projects.filter((_, itemIndex) => itemIndex !== index),
+        };
+      }
+
+      return {
+        ...content,
+        skills: content.skills.filter((_, itemIndex) => itemIndex !== index),
+      };
+    });
+  }
+
+  function moveBlock(kind: 'experience' | 'education' | 'project' | 'skill', index: number, direction: -1 | 1) {
+    const toIndex = index + direction;
+
+    applyContentChange((content) => {
+      if (kind === 'experience') {
+        return {
+          ...content,
+          workExperience: moveArrayItem(content.workExperience, index, toIndex),
+        };
+      }
+
+      if (kind === 'education') {
+        return {
+          ...content,
+          education: moveArrayItem(content.education, index, toIndex),
+        };
+      }
+
+      if (kind === 'project') {
+        return {
+          ...content,
+          projects: moveArrayItem(content.projects, index, toIndex),
+        };
+      }
+
+      return {
+        ...content,
+        skills: moveArrayItem(content.skills, index, toIndex),
+      };
+    });
+  }
+
+  function addExperienceBullet(index: number) {
+    applyContentChange((content) => ({
+      ...content,
+      workExperience: content.workExperience.map((experience, itemIndex) =>
+        itemIndex === index
+          ? { ...experience, bullets: [...experience.bullets, 'New bullet'] }
+          : experience
+      ),
+    }));
+  }
+
+  function addEducationDetail(index: number) {
+    applyContentChange((content) => ({
+      ...content,
+      education: content.education.map((education, itemIndex) =>
+        itemIndex === index
+          ? { ...education, details: [...(education.details ?? []), 'New detail'] }
+          : education
+      ),
+    }));
   }
 
   if (!activeResume) {
@@ -446,6 +549,155 @@ export function ResumePreview({ onContentChange }: Props) {
           <Plus className="h-3 w-3" />
           Skill
         </Button>
+      </div>
+      <div className="mb-4 space-y-3 rounded border border-dashed border-border-dashed p-2">
+        <p className="font-mono text-[10px] text-text-dim">
+          Block controls: delete, reorder, and quick bullet/detail add.
+        </p>
+
+        <div className="space-y-2">
+          <p className="annotation">experience blocks</p>
+          {activeResume.content.workExperience.length === 0 ? (
+            <p className="font-mono text-[10px] text-text-dim">No experience blocks.</p>
+          ) : (
+            activeResume.content.workExperience.map((experience, index) => (
+              <div
+                key={`experience-${index}`}
+                className="flex flex-wrap items-center gap-1 rounded border border-border-dashed bg-surface-raised/20 p-1.5"
+              >
+                <span className="max-w-[24rem] truncate pr-2 font-mono text-[10px] text-text-muted">
+                  {index + 1}. {[experience.position, experience.company].filter(Boolean).join(' @ ') || 'Untitled'}
+                </span>
+                <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveBlock('experience', index, -1)}>
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  disabled={index === activeResume.content.workExperience.length - 1}
+                  onClick={() => moveBlock('experience', index, 1)}
+                >
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+                <Button variant="secondary" size="sm" type="button" onClick={() => addExperienceBullet(index)}>
+                  <Plus className="h-3 w-3" />
+                  Bullet
+                </Button>
+                <Button variant="danger" size="sm" type="button" onClick={() => deleteBlock('experience', index)}>
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <p className="annotation">education blocks</p>
+          {activeResume.content.education.length === 0 ? (
+            <p className="font-mono text-[10px] text-text-dim">No education blocks.</p>
+          ) : (
+            activeResume.content.education.map((education, index) => (
+              <div
+                key={`education-${index}`}
+                className="flex flex-wrap items-center gap-1 rounded border border-border-dashed bg-surface-raised/20 p-1.5"
+              >
+                <span className="max-w-[24rem] truncate pr-2 font-mono text-[10px] text-text-muted">
+                  {index + 1}. {[education.degree, education.institution].filter(Boolean).join(' @ ') || 'Untitled'}
+                </span>
+                <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveBlock('education', index, -1)}>
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  disabled={index === activeResume.content.education.length - 1}
+                  onClick={() => moveBlock('education', index, 1)}
+                >
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+                <Button variant="secondary" size="sm" type="button" onClick={() => addEducationDetail(index)}>
+                  <Plus className="h-3 w-3" />
+                  Detail
+                </Button>
+                <Button variant="danger" size="sm" type="button" onClick={() => deleteBlock('education', index)}>
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <p className="annotation">project blocks</p>
+          {activeResume.content.projects.length === 0 ? (
+            <p className="font-mono text-[10px] text-text-dim">No project blocks.</p>
+          ) : (
+            activeResume.content.projects.map((project, index) => (
+              <div
+                key={`project-${index}`}
+                className="flex flex-wrap items-center gap-1 rounded border border-border-dashed bg-surface-raised/20 p-1.5"
+              >
+                <span className="max-w-[24rem] truncate pr-2 font-mono text-[10px] text-text-muted">
+                  {index + 1}. {project.name || 'Untitled'}
+                </span>
+                <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveBlock('project', index, -1)}>
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  disabled={index === activeResume.content.projects.length - 1}
+                  onClick={() => moveBlock('project', index, 1)}
+                >
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+                <Button variant="danger" size="sm" type="button" onClick={() => deleteBlock('project', index)}>
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <p className="annotation">skills</p>
+          {activeResume.content.skills.length === 0 ? (
+            <p className="font-mono text-[10px] text-text-dim">No skills yet.</p>
+          ) : (
+            activeResume.content.skills.map((skill, index) => (
+              <div
+                key={`skill-${index}`}
+                className="flex flex-wrap items-center gap-1 rounded border border-border-dashed bg-surface-raised/20 p-1.5"
+              >
+                <span className="max-w-[24rem] truncate pr-2 font-mono text-[10px] text-text-muted">
+                  {index + 1}. {skill || 'Untitled'}
+                </span>
+                <Button variant="ghost" size="sm" type="button" disabled={index === 0} onClick={() => moveBlock('skill', index, -1)}>
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  disabled={index === activeResume.content.skills.length - 1}
+                  onClick={() => moveBlock('skill', index, 1)}
+                >
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+                <Button variant="danger" size="sm" type="button" onClick={() => deleteBlock('skill', index)}>
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {rendering && (
